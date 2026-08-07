@@ -30,12 +30,14 @@ async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
                         handoff_enabled: bool = False, handoff_targets: list[str] | None = None,
                         orchestrator_enabled: bool = False, orchestrator_rules: list[dict] | None = None,
                         description: str = "", mcp_servers: list[dict] | None = None,
-                        provider: str | None = None, provider_override: dict | None = None) -> dict:
+                        provider: str | None = None, provider_override: dict | None = None,
+                        skills: list[str] | None = None) -> dict:
     config = {
         "name": name,
         "model": model,
         "description": description or name,
-        "tools": tools,
+        "skills": skills or [],
+        "mcp_servers": mcp_servers or [],
         "handoff": {
             "enabled": handoff_enabled,
             "targets": handoff_targets or [],
@@ -44,12 +46,13 @@ async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
             "enabled": orchestrator_enabled,
             "rules": orchestrator_rules or [],
         },
-        "mcp_servers": mcp_servers or [],
     }
     if provider:
         config["provider"] = provider
     if provider_override:
         config["provider_override"] = provider_override
+    if tools:
+        config["tools"] = tools  # legacy, kept for backward compat
 
     config_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
     card = build_agent_card(config, soul_md)
@@ -84,7 +87,9 @@ async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
 async def update_agent(name: str, soul_md: str | None = None, tools: list[str] | None = None,
                         model: str | None = None, handoff_enabled: bool | None = None,
                         handoff_targets: list[str] | None = None, description: str | None = None,
-                        provider: str | None = None, provider_override: dict | None = None) -> dict | None:
+                        provider: str | None = None, provider_override: dict | None = None,
+                        skills: list[str] | None = None,
+                        mcp_servers: list[dict] | None = None) -> dict | None:
     existing = await get_agent(name)
     if not existing:
         return None
@@ -94,6 +99,10 @@ async def update_agent(name: str, soul_md: str | None = None, tools: list[str] |
         existing["soul_md"] = soul_md
     if tools is not None:
         config["tools"] = tools
+    if skills is not None:
+        config["skills"] = skills
+    if mcp_servers is not None:
+        config["mcp_servers"] = mcp_servers
     if model is not None:
         config["model"] = model
     if handoff_enabled is not None:

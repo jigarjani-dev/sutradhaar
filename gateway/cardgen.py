@@ -10,12 +10,9 @@ def build_agent_card(config: dict, soul_md: str) -> dict:
     name = config["name"]
     description = config.get("description", name)
     tools = config.get("tools", [])
+    skills = config.get("skills", [])
 
-    skills = []
-    for tool_name in tools:
-        skill = _tool_to_skill(tool_name)
-        if skill:
-            skills.append(skill)
+    skill_objs = _skills_to_skills(skills, tools)
 
     # build a card dict compatible with a2a.types.AgentCard
     card = {
@@ -27,7 +24,7 @@ def build_agent_card(config: dict, soul_md: str) -> dict:
         "capabilities": {
             "streaming": True,
         },
-        "skills": skills,
+        "skills": skill_objs,
         "url": f"http://localhost:8080",
         "supportedInterfaces": [
             {
@@ -38,7 +35,47 @@ def build_agent_card(config: dict, soul_md: str) -> dict:
         ],
     }
 
+    if tools:
+        card["tools"] = tools
+
     return card
+
+
+def _skills_to_skills(skill_names: list[str], legacy_tools: list[str]) -> list[dict]:
+    """Emit A2A skills. Each skill is a capability; if it bundles scripts they
+    are listed under 'tools'. Legacy flat tools map to their skill equivalents."""
+    result = []
+
+    for sname in skill_names:
+        try:
+            from gateway.skills import get_skill
+            skill = get_skill(sname)
+        except Exception:
+            skill = None
+        if not skill:
+            result.append({
+                "id": sname,
+                "name": sname,
+                "description": "Skill package",
+                "tags": ["skill"],
+                "tools": [],
+            })
+            continue
+        result.append({
+            "id": skill["name"],
+            "name": skill["name"],
+            "description": skill.get("description", ""),
+            "tags": ["skill"],
+            "tools": skill.get("scripts", []),
+        })
+
+    # legacy flat tools -> skills
+    for tool in legacy_tools or []:
+        mapped = _tool_to_skill(tool)
+        if mapped:
+            result.append(mapped)
+
+    return result
 
 
 def _tool_to_skill(tool_name: str) -> dict | None:

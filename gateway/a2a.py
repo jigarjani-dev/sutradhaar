@@ -78,12 +78,8 @@ class GatewayAgentExecutor(AgentExecutor):
 
 def build_agent_card_obj(name: str, config: dict, tools: list[str]) -> dict:
     """Build a card dict that a2a SDK can consume."""
-    skills = []
-    for tool_name in tools:
-        from gateway.cardgen import _tool_to_skill
-        skill = _tool_to_skill(tool_name)
-        if skill:
-            skills.append(skill)
+    from gateway.cardgen import _skills_to_skills
+    skill_objs = _skills_to_skills(config.get("skills", []), tools)
 
     return {
         "name": name,
@@ -92,7 +88,8 @@ def build_agent_card_obj(name: str, config: dict, tools: list[str]) -> dict:
         "defaultInputModes": ["text/plain"],
         "defaultOutputModes": ["text/plain"],
         "capabilities": {"streaming": True},
-        "skills": skills,
+        "skills": skill_objs,
+        "tools": config.get("tools", []),
         "url": f"http://localhost:8080",
         "supportedInterfaces": [
             {

@@ -37,7 +37,15 @@ Thumbs.db
 desktop.ini
 
 # Application data
-data/
+data/*
+!data/skills/
+!data/skills/**/
+!data/skills/**/*.md
+!data/skills/**/scripts/
+!data/skills/**/scripts/**/*.py
+!data/skills/**/scripts/**/*.sh
+!data/skills/**/scripts/**/*.js
+!data/mcp.json
 credentials/
 *.db
 *.sqlite

@@ -131,14 +131,29 @@ function AgentNode({ data }: { data: AgentNodeData }) {
               <div className="text-base font-bold mb-1" style={{ color: colors.text }}>{agent.name}</div>
               <div className="text-[11px] leading-relaxed" style={{ color: colors.textSecondary }}>{agent.description || 'Agent'}</div>
             </div>
-            <div className="text-[9px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: `${c}B0` }}>Tools</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: `${c}B0` }}>Skills</div>
             <div className="flex flex-wrap gap-1 mb-2 min-h-[20px]">
-              {(agent.tools || []).map((t: string) => (
+              {(agent.skills && agent.skills.length > 0 ? agent.skills : agent.tools || []).map((t: string) => (
                 <span key={t} className="px-2 py-0.5 rounded-full text-[9px] font-medium border" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
                   {t}
                 </span>
               ))}
             </div>
+            {agent.mcp_servers && agent.mcp_servers.length > 0 && (
+              <>
+                <div className="text-[9px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: `${c}B0` }}>MCP</div>
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {agent.mcp_servers.map((m: any) => {
+                    const n = typeof m === 'string' ? m : m.name
+                    return (
+                      <span key={n} className="px-2 py-0.5 rounded-full text-[9px] font-medium border flex items-center gap-1" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
+                        <Lightning size={8} weight="fill" style={{ color: c }} /> {n}
+                      </span>
+                    )
+                  })}
+                </div>
+              </>
+            )}
             <div className="mt-auto pt-2 border-t flex items-center gap-1" style={{ borderColor: `${c}25`, color: colors.textMuted }}>
               {isActive ? <Wrench size={10} weight="bold" style={{ color: c }} /> : <Robot size={10} weight="fill" />}
               <span className="text-[10px] truncate">{st.lastActivity || (isActive ? 'working...' : 'waiting')}</span>
@@ -163,13 +178,23 @@ function AgentNode({ data }: { data: AgentNodeData }) {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide mb-1" style={{ color: colors.textMuted }}>Skills</div>
-              <div className="flex flex-wrap gap-1">
-                {(a2aCard?.skills || []).length > 0 ? a2aCard.skills.map((s: any) => (
-                  <span key={s.id} className="px-2 py-0.5 rounded-full text-[9px] font-medium border" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}10` }}>{s.name}</span>
-                )) : (
-                  <span className="text-[10px]" style={{ color: colors.textMuted }}>No skills registered</span>
-                )}
-              </div>
+              {(a2aCard?.skills || []).length > 0 ? a2aCard.skills.map((s: any) => (
+                <div key={s.id} className="mb-2 p-2 rounded-lg border" style={{ borderColor: `${c}25`, backgroundColor: `${c}06` }}>
+                  <div className="text-[10px] font-semibold" style={{ color: colors.text }}>{s.name}</div>
+                  {s.description && (
+                    <div className="text-[9px] leading-snug mt-0.5" style={{ color: colors.textSecondary }}>{s.description}</div>
+                  )}
+                  {s.tools && s.tools.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {s.tools.map((t: string) => (
+                        <span key={t} className="px-1.5 py-0.5 rounded text-[8px] font-mono border" style={{ borderColor: `${c}30`, color: colors.textSecondary, backgroundColor: `${c}10` }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )) : (
+                <span className="text-[10px]" style={{ color: colors.textMuted }}>No skills registered</span>
+              )}
             </div>
             <div>
               <div className="text-[9px] font-semibold uppercase tracking-wide mb-1" style={{ color: colors.textMuted }}>Interfaces</div>

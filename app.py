@@ -39,6 +39,8 @@ from gateway.memory import (
     add_message, get_history, get_latest_summary, clear_history,
     build_context, summarize_old_turns, format_history_for_api,
 )
+from gateway.mcp import mcp_bridge
+from gateway.skills import list_skills, get_skill
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,6 +53,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Workshop Agent Gateway...")
     await db_init(settings.data_dir)
     await seed_presets()
+    await mcp_bridge.start()
     # re-register A2A routes for existing agents
     agents = await list_agents()
     for agent in agents:
@@ -60,6 +63,7 @@ async def lifespan(app: FastAPI):
         register_agent_a2a_routes(app, agent["name"], config, tools)
     logger.info(f"Gateway ready on port {settings.port}. {len(agents)} agent(s) loaded.")
     yield
+    await mcp_bridge.stop()
     logger.info("Shutting down.")
 
 
@@ -91,7 +95,7 @@ async def api_list_agents():
     agents = await list_agents()
     for a in agents:
         a["card_url"] = f"/a2a/{a['name']}/.well-known/agent.json"
-        a["tools"], a["orchestrator"], a["handoff_targets"], a["orchestrator_rules"] = _extract_agent_meta(a)
+        a["tools"], a["orchestrator"], a["handoff_targets"], a["orchestrator_rules"], a["skills"], a["mcp_servers"] = _extract_agent_meta(a)
     return agents
 
 
@@ -101,12 +105,12 @@ async def api_get_agent(name: str):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     agent["card_url"] = f"/a2a/{name}/.well-known/agent.json"
-    agent["tools"], agent["orchestrator"], agent["handoff_targets"], agent["orchestrator_rules"] = _extract_agent_meta(agent)
+    agent["tools"], agent["orchestrator"], agent["handoff_targets"], agent["orchestrator_rules"], agent["skills"], agent["mcp_servers"] = _extract_agent_meta(agent)
     return agent
 
 
-def _extract_agent_meta(agent: dict) -> tuple[list[str], bool, list[str], list[dict]]:
-    """Pull tools + orchestrator flag + handoff targets + orchestrator rules."""
+def _extract_agent_meta(agent: dict) -> tuple[list[str], bool, list[str], list[dict], list[str], list[dict]]:
+    """Pull tools + orchestrator flag + handoff targets + rules + skills + mcp."""
     try:
         import yaml
         config = yaml.safe_load(agent.get("config_yaml") or "{}") or {}
@@ -115,9 +119,23 @@ def _extract_agent_meta(agent: dict) -> tuple[list[str], bool, list[str], list[d
         orch = bool(orch_cfg.get("enabled"))
         handoff = (config.get("handoff") or {}).get("targets", [])
         rules = orch_cfg.get("rules", [])
-        return tools, orch, handoff, rules
+        skills = config.get("skills", [])
+        mcp_servers = config.get("mcp_servers", [])
+        return tools, orch, handoff, rules, skills, mcp_servers
     except Exception:
-        return [], False, [], []
+        return [], False, [], [], [], []
+
+
+def _agent_capability_refs(config: dict) -> list[str]:
+    """Full list of capability references for an agent: skills + mcp servers + legacy tools."""
+    refs: list[str] = list(config.get("skills", []))
+    for m in config.get("mcp_servers", []):
+        if isinstance(m, str):
+            refs.append(m)
+        elif isinstance(m, dict) and m.get("name"):
+            refs.append(m["name"])
+    refs.extend(config.get("tools", []))
+    return refs
 
 
 @app.post("/api/agents")
@@ -138,9 +156,10 @@ async def api_create_agent(data: dict):
     orchestrator_enabled = data.get("orchestrator_enabled", False)
     orchestrator_rules = data.get("orchestrator_rules", [])
     description = data.get("description", name)
-    mcp_servers = data.get("mcp_servers", [])
     provider = data.get("provider")
     provider_override = data.get("provider_override")
+    skills = data.get("skills", [])
+    mcp_servers = data.get("mcp_servers", [])
 
     agent = await create_agent(
         name=name, soul_md=soul_md, tools=tools, model=model,
@@ -149,6 +168,7 @@ async def api_create_agent(data: dict):
         orchestrator_rules=orchestrator_rules,
         description=description, mcp_servers=mcp_servers,
         provider=provider, provider_override=provider_override,
+        skills=skills,
     )
 
     # register A2A routes
@@ -177,6 +197,8 @@ async def api_update_agent(name: str, data: dict):
         description=data.get("description"),
         provider=data.get("provider"),
         provider_override=data.get("provider_override"),
+        skills=data.get("skills"),
+        mcp_servers=data.get("mcp_servers"),
     )
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -224,7 +246,7 @@ async def api_chat(name: str, data: dict):
         summary = await get_latest_summary(name)
         messages = build_context(history, system_prompt, summary)
 
-        tools = config.get("tools", [])
+        tools = _agent_capability_refs(config)
 
         thinking_parts: list[str] = []
 
@@ -306,7 +328,7 @@ async def api_chat_stream(name: str, data: dict):
     history = await get_history(name)
     summary = await get_latest_summary(name)
     messages = build_context(history, system_prompt, summary)
-    tools = config.get("tools", [])
+    tools = _agent_capability_refs(config)
 
     async def generate():
         await set_agent_status(name, "thinking")
@@ -477,6 +499,37 @@ async def api_fetch_models(pid: str):
     if models:
         await update_provider(pid, models=models)
     return {"models": models}
+
+
+# ── Skills ─────────────────────────────────────────────────────
+
+@app.get("/api/skills")
+async def api_list_skills():
+    return list_skills()
+
+
+@app.get("/api/skills/{name}")
+async def api_get_skill(name: str):
+    skill = get_skill(name)
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    return skill
+
+
+# ── MCP ────────────────────────────────────────────────────────
+
+@app.get("/api/mcp/servers")
+async def api_list_mcp_servers():
+    return {
+        "servers": list(mcp_bridge.servers.keys()),
+        "tools": mcp_bridge.tool_defs,
+    }
+
+
+@app.post("/api/mcp/{server}/tools/{tool}")
+async def api_call_mcp_tool(server: str, tool: str, data: dict):
+    exposed = f"mcp__{server}__{tool}"
+    return {"result": await mcp_bridge.call(exposed, data.get("arguments", {}))}
 
 
 # ── Debug ──────────────────────────────────────────────────────

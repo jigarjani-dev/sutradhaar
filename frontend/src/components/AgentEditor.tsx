@@ -32,6 +32,10 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
   const [providerModels, setProviderModels] = useState<string[]>([])
   const [fetchingModels, setFetchingModels] = useState(false)
   const [tools, setTools] = useState<string[]>(agent.tools || [])
+  const [skills, setSkills] = useState<string[]>(agent.skills || [])
+  const [mcpServers, setMcpServers] = useState<string[]>(
+    (agent.mcp_servers || []).map((m: any) => typeof m === 'string' ? m : m.name)
+  )
   const [handoffTargets, setHandoffTargets] = useState<string[]>(agent.handoff?.targets || [])
   const [orchestratorEnabled, setOrchestratorEnabled] = useState(agent.orchestrator?.enabled || false)
   const [orchestratorRules, setOrchestratorRules] = useState(agent.orchestrator?.rules || [])
@@ -78,6 +82,20 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
       .catch(() => {})
   }, [agent.provider])
 
+  // Load available skills + mcp servers
+  const [availableSkills, setAvailableSkills] = useState<any[]>([])
+  const [availableMcpServers, setAvailableMcpServers] = useState<string[]>([])
+  useEffect(() => {
+    fetch(`${API}/skills`)
+      .then(r => r.json())
+      .then(data => setAvailableSkills(data))
+      .catch(() => {})
+    fetch(`${API}/mcp/servers`)
+      .then(r => r.json())
+      .then(data => setAvailableMcpServers((data.servers || []).filter((s: string) => s !== '__proto__')))
+      .catch(() => {})
+  }, [])
+
   const loadProviderModels = async (pid: string) => {
     if (!pid) { setProviderModels([]); return }
     const prov = providers.find(p => p.id === pid)
@@ -98,6 +116,14 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
 
   const toggleTool = (toolId: string) => {
     setTools((prev: string[]) => prev.includes(toolId) ? prev.filter(t => t !== toolId) : [...prev, toolId])
+  }
+
+  const toggleSkill = (skillName: string) => {
+    setSkills((prev: string[]) => prev.includes(skillName) ? prev.filter(s => s !== skillName) : [...prev, skillName])
+  }
+
+  const toggleMcpServer = (serverName: string) => {
+    setMcpServers((prev: string[]) => prev.includes(serverName) ? prev.filter(s => s !== serverName) : [...prev, serverName])
   }
 
   const toggleHandoffTarget = (targetName: string) => {
@@ -128,6 +154,8 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
           model,
           provider: providerId,
           tools,
+          skills,
+          mcp_servers: mcpServers,
           handoff_enabled: handoffTargets.length > 0,
           handoff_targets: handoffTargets,
           orchestrator_enabled: orchestratorEnabled,
@@ -284,29 +312,89 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
               </div>
             </div>
 
-            {/* Tools */}
+            {/* Skills */}
             <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Tools</label>
+              <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Skills</label>
               <div className="grid grid-cols-2 gap-2">
-                {AVAILABLE_TOOLS.map(tool => {
-                  const active = tools.includes(tool.id)
+                {availableSkills.length === 0 ? (
+                  <p className="text-xs text-gray-400 col-span-2">No skills installed. Add SKILL.md folders under data/skills/.</p>
+                ) : availableSkills.map(skill => {
+                  const active = skills.includes(skill.name)
                   return (
                     <button
-                      key={tool.id}
-                      onClick={() => toggleTool(tool.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                      key={skill.name}
+                      onClick={() => toggleSkill(skill.name)}
+                      title={skill.description}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all text-left ${
                         active
                           ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                           : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                       }`}
                     >
-                      <span className="text-base">{tool.icon}</span>
-                      {tool.label}
+                      <span className="w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold" style={{ backgroundColor: active ? '#6366f1' : '#e5e7eb', color: active ? '#fff' : '#9ca3af' }}>
+                        S
+                      </span>
+                      <span className="truncate">{skill.name}</span>
+                      <span className="ml-auto text-[9px] text-gray-400 shrink-0">{skill.scripts?.length || 0} scripts</span>
                     </button>
                   )
                 })}
               </div>
             </div>
+
+            {/* MCP Servers */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">MCP Servers</label>
+              {availableMcpServers.length === 0 ? (
+                <p className="text-xs text-gray-400">No MCP servers configured in data/mcp.json</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableMcpServers.map(server => {
+                    const active = mcpServers.includes(server)
+                    return (
+                      <button
+                        key={server}
+                        onClick={() => toggleMcpServer(server)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-all ${
+                          active
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: active ? '#6366f1' : '#9ca3af' }} />
+                        {server}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Legacy Tools */}
+            {AVAILABLE_TOOLS.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Legacy Tools</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {AVAILABLE_TOOLS.map(tool => {
+                    const active = tools.includes(tool.id)
+                    return (
+                      <button
+                        key={tool.id}
+                        onClick={() => toggleTool(tool.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
+                          active
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="text-base">{tool.icon}</span>
+                        {tool.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Handoff */}
             <div>
