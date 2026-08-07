@@ -50,7 +50,7 @@ const agentIcon = (agent: any, size = 20) => {
   return <Cpu {...props} />
 }
 
-function StatusPill({ status, color }: { status: string; color: string }) {
+function StatusPill({ status, color, greyscale }: { status: string; color: string; greyscale?: boolean }) {
   if (status === 'thinking' || status === 'working') {
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ backgroundColor: `${color}12`, color }}>
@@ -75,14 +75,15 @@ function StatusPill({ status, color }: { status: string; color: string }) {
       </div>
     )
   }
+  const idleColor = greyscale ? '#9ca3af' : colors.emerald
   return (
     <motion.div
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
-      style={{ backgroundColor: `${colors.emerald}12`, color: colors.emerald }}
-      animate={{ opacity: [1, 0.7, 1] }}
+      style={{ backgroundColor: `${idleColor}12`, color: idleColor }}
+      animate={{ opacity: greyscale ? 1 : [1, 0.7, 1] }}
       transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
     >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colors.emerald }} />
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: idleColor }} />
       <span className="text-[10px] font-semibold uppercase tracking-wide">idle</span>
     </motion.div>
   )
@@ -174,6 +175,11 @@ export default function PipelineCards({
               const isSelected = selected === a.name
               const isActive = st.status === 'thinking' || st.status === 'working'
               const isError = st.status === 'error'
+              const hasActivity = st.tools.length > 0
+              // colored when selected OR invoked (active / has tool activity); greyscale otherwise
+              const isColored = isSelected || isActive || isError || hasActivity
+              const c = isColored ? color : '#9ca3af'
+              const prevColored = states[agents[i - 1]?.name]?.tools?.length > 0 || agents[i - 1]?.name === selected
 
               return (
                 <div key={a.name} className="flex items-center gap-2">
@@ -181,11 +187,15 @@ export default function PipelineCards({
                     <div className="flex items-center shrink-0">
                       <motion.div
                         className="w-10 h-px"
-                        style={{ background: `linear-gradient(to right, ${agentColor(agents[i - 1].name)}66, ${color}66)` }}
+                        style={{
+                          background: isColored && prevColored
+                            ? `linear-gradient(to right, ${agentColor(agents[i - 1].name)}66, ${color}66)`
+                            : 'linear-gradient(to right, #d1d5db, #d1d5db)',
+                        }}
                         animate={{ opacity: [0.3, 1, 0.3] }}
                         transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
                       />
-                      <ArrowRight size={12} weight="bold" style={{ color: colors.textMuted }} />
+                      <ArrowRight size={12} weight="bold" style={{ color: isColored ? colors.textMuted : '#d1d5db' }} />
                     </div>
                   )}
 
@@ -194,27 +204,25 @@ export default function PipelineCards({
                     layout
                     whileTap={{ scale: 0.98 }}
                     onClick={() => onSelect(a.name)}
-                    className="relative w-[200px] h-[300px] rounded-2xl border-2 cursor-pointer flex flex-col overflow-hidden transition-shadow"
+                    className="relative w-[200px] h-[300px] rounded-2xl border-2 cursor-pointer flex flex-col overflow-hidden"
                     style={{
-                      borderColor: isSelected ? color : isActive ? `${color}70` : `${color}35`,
-                      boxShadow: isSelected
-                        ? `0 4px 16px ${color}30, 0 16px 40px -12px ${color}35`
-                        : '0 1px 2px rgba(0,0,0,0.05)',
+                      borderColor: isSelected ? color : isActive ? `${color}70` : `${c}35`,
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     }}
                   >
                     {/* header band: darker tint */}
                     <div
                       className="px-4 py-3 flex items-center justify-between gap-2 shrink-0"
-                      style={{ background: `linear-gradient(135deg, ${color}2E 0%, ${color}1A 100%)` }}
+                      style={{ background: `linear-gradient(135deg, ${c}2E 0%, ${c}1A 100%)` }}
                     >
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: `${color}30` }}>
-                        <span style={{ color }}>{agentIcon(a, 24)}</span>
+                      <div className="w-11 h-11 rounded-xl flex items-center justify-center shadow-sm" style={{ backgroundColor: `${c}30` }}>
+                        <span style={{ color: c }}>{agentIcon(a, 24)}</span>
                       </div>
-                      <StatusPill status={isError ? 'error' : st.status} color={color} />
+                      <StatusPill status={isError ? 'error' : st.status} color={c} greyscale={!isColored} />
                     </div>
 
                     {/* body: lighter pastel */}
-                    <div className="flex-1 flex flex-col px-4 py-3" style={{ background: `linear-gradient(180deg, ${color}10 0%, ${color}05 100%)` }}>
+                    <div className="flex-1 flex flex-col px-4 py-3" style={{ background: `linear-gradient(180deg, ${c}10 0%, ${c}05 100%)` }}>
                       {/* name + description */}
                       <div className="mb-3">
                         <div className="text-base font-bold mb-1" style={{ color: colors.text }}>{a.name}</div>
@@ -224,12 +232,12 @@ export default function PipelineCards({
                       </div>
 
                       {/* tools summary */}
-                      <div className="text-[9px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: `${color}B0` }}>
+                      <div className="text-[9px] font-semibold uppercase tracking-wide mb-1.5" style={{ color: `${c}B0` }}>
                         Tools
                       </div>
                       <div className="flex flex-wrap gap-1 mb-2 min-h-[20px]">
                         {(a.tools || []).map((t: string) => (
-                          <span key={t} className="px-2 py-0.5 rounded-full text-[9px] font-medium border" style={{ borderColor: `${color}35`, color: colors.textSecondary, backgroundColor: `${color}12` }}>
+                          <span key={t} className="px-2 py-0.5 rounded-full text-[9px] font-medium border" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
                             {t}
                           </span>
                         ))}
@@ -245,8 +253,8 @@ export default function PipelineCards({
                       )}
 
                       {/* footer pinned to bottom */}
-                      <div className="mt-auto pt-2 border-t flex items-center gap-1" style={{ borderColor: `${color}25`, color: colors.textMuted }}>
-                        {isActive ? <Wrench size={10} weight="bold" style={{ color }} /> : <Robot size={10} weight="fill" />}
+                      <div className="mt-auto pt-2 border-t flex items-center gap-1" style={{ borderColor: `${c}25`, color: colors.textMuted }}>
+                        {isActive ? <Wrench size={10} weight="bold" style={{ color: c }} /> : <Robot size={10} weight="fill" />}
                         <span className="text-[10px] truncate">
                           {st.lastActivity || (isActive ? 'working...' : 'waiting')}
                         </span>
