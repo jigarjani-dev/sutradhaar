@@ -183,21 +183,27 @@ export default function PipelineCards({
 
               return (
                 <div key={a.name} className="flex items-center gap-2">
-                  {i > 0 && (
-                    <div className="flex items-center shrink-0">
-                      <motion.div
-                        className="w-10 h-px"
-                        style={{
-                          background: isColored && prevColored
-                            ? `linear-gradient(to right, ${agentColor(agents[i - 1].name)}66, ${color}66)`
-                            : 'linear-gradient(to right, #d1d5db, #d1d5db)',
-                        }}
-                        animate={{ opacity: [0.3, 1, 0.3] }}
-                        transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                      />
-                      <ArrowRight size={12} weight="bold" style={{ color: isColored ? colors.textMuted : '#d1d5db' }} />
-                    </div>
-                  )}
+                  {i > 0 && (() => {
+                    const prev = agents[i - 1]
+                    const hasHandoff = (prev.handoff_targets || []).includes(a.name)
+                    return hasHandoff ? (
+                      <div className="flex items-center shrink-0">
+                        <motion.div
+                          className="w-10 h-px"
+                          style={{
+                            background: isColored && prevColored
+                              ? `linear-gradient(to right, ${agentColor(prev.name)}66, ${color}66)`
+                              : 'linear-gradient(to right, #d1d5db, #d1d5db)',
+                          }}
+                          animate={{ opacity: [0.3, 1, 0.3] }}
+                          transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                        />
+                        <ArrowRight size={12} weight="bold" style={{ color: isColored ? colors.textMuted : '#d1d5db' }} />
+                      </div>
+                    ) : (
+                      <div className="w-[52px] shrink-0" />
+                    )
+                  })()}
 
                   <motion.div
                     variants={card}

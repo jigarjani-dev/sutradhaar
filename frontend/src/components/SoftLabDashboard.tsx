@@ -7,7 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
-import PipelineCards from './PipelineCards'
+import PipelineCanvas from './PipelineCanvas'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -512,7 +512,7 @@ export default function SoftLabDashboard() {
               <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Pipeline Topology</h2>
               <span className="text-xs" style={{ color: colors.textMuted }}>click a card to chat</span>
             </div>
-            <PipelineCards
+            <PipelineCanvas
               agents={agents}
               states={agentStates}
               selected={selectedAgent}

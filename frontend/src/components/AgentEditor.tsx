@@ -51,7 +51,16 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
         }
       } catch {}
     }
-  }, [agent.config_yaml])
+    // handoff targets come back from the API at top level (handoff_targets)
+    if (agent.handoff_targets?.length) {
+      setHandoffTargets(agent.handoff_targets)
+    } else if (agent.handoff?.targets?.length) {
+      setHandoffTargets(agent.handoff.targets)
+    }
+    // orchestrator state from the API / config
+    if (agent.orchestrator) setOrchestratorEnabled(true)
+    if (agent.orchestrator_rules?.length) setOrchestratorRules(agent.orchestrator_rules)
+  }, [agent.config_yaml, agent.handoff_targets, agent.handoff?.targets, agent.orchestrator, agent.orchestrator_rules])
 
   // Load providers for the dropdown
   useEffect(() => {

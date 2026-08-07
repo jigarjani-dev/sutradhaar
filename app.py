@@ -91,7 +91,7 @@ async def api_list_agents():
     agents = await list_agents()
     for a in agents:
         a["card_url"] = f"/a2a/{a['name']}/.well-known/agent.json"
-        a["tools"], a["orchestrator"] = _extract_agent_meta(a)
+        a["tools"], a["orchestrator"], a["handoff_targets"], a["orchestrator_rules"] = _extract_agent_meta(a)
     return agents
 
 
@@ -101,20 +101,23 @@ async def api_get_agent(name: str):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     agent["card_url"] = f"/a2a/{name}/.well-known/agent.json"
-    agent["tools"], agent["orchestrator"] = _extract_agent_meta(agent)
+    agent["tools"], agent["orchestrator"], agent["handoff_targets"], agent["orchestrator_rules"] = _extract_agent_meta(agent)
     return agent
 
 
-def _extract_agent_meta(agent: dict) -> tuple[list[str], bool]:
-    """Pull tools + orchestrator flag out of config_yaml for the frontend."""
+def _extract_agent_meta(agent: dict) -> tuple[list[str], bool, list[str], list[dict]]:
+    """Pull tools + orchestrator flag + handoff targets + orchestrator rules."""
     try:
         import yaml
         config = yaml.safe_load(agent.get("config_yaml") or "{}") or {}
         tools = config.get("tools", [])
-        orch = bool((config.get("orchestrator") or {}).get("enabled"))
-        return tools, orch
+        orch_cfg = config.get("orchestrator") or {}
+        orch = bool(orch_cfg.get("enabled"))
+        handoff = (config.get("handoff") or {}).get("targets", [])
+        rules = orch_cfg.get("rules", [])
+        return tools, orch, handoff, rules
     except Exception:
-        return [], False
+        return [], False, [], []
 
 
 @app.post("/api/agents")
