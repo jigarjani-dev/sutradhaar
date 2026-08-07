@@ -100,7 +100,9 @@ async def execute_tool(name: str, args: dict) -> str:
         if len(parts) >= 3:
             skill_name = parts[1]
             script_name = "__".join(parts[2:])
-            return await execute_script(skill_name, script_name, args or {})
+            # tool schema nests args under "args"; unwrap for the script
+            call_args = (args or {}).get("args") if isinstance(args, dict) else None
+            return await execute_script(skill_name, script_name, call_args or {})
 
     return f"Unknown tool: {name}"
 

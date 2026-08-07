@@ -39,7 +39,7 @@ from gateway.memory import (
     add_message, get_history, get_latest_summary, clear_history,
     build_context, summarize_old_turns, format_history_for_api,
 )
-from gateway.mcp import mcp_bridge
+from gateway.mcp import mcp_bridge, get_server_config, save_server_config, reload_servers
 from gateway.skills import list_skills, get_skill
 
 logging.basicConfig(level=logging.INFO)
@@ -524,6 +524,19 @@ async def api_list_mcp_servers():
         "servers": list(mcp_bridge.servers.keys()),
         "tools": mcp_bridge.tool_defs,
     }
+
+
+@app.get("/api/mcp/config")
+async def api_get_mcp_config():
+    return get_server_config()
+
+
+@app.put("/api/mcp/config")
+async def api_save_mcp_config(data: dict):
+    servers = data.get("servers", {})
+    save_server_config(servers)
+    await reload_servers()
+    return get_server_config()
 
 
 @app.post("/api/mcp/{server}/tools/{tool}")

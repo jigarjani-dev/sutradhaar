@@ -4,14 +4,6 @@ import { X, FloppyDisk, Trash, Cpu, ArrowClockwise } from '@phosphor-icons/react
 
 const API = '/api'
 
-const AVAILABLE_TOOLS = [
-  { id: 'gmail_reader', label: 'Gmail Reader', icon: '📧' },
-  { id: 'sheets_writer', label: 'Sheets Writer', icon: '📊' },
-  { id: 'sheets_reader', label: 'Sheets Reader', icon: '📋' },
-  { id: 'ocr_reader', label: 'OCR Reader', icon: '🔍' },
-  { id: 'telegram_sender', label: 'Telegram', icon: '✈️' },
-]
-
 const COLORS = ['#ec4899', '#8b5cf6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#3b82f6']
 
 interface AgentEditorProps {
@@ -31,7 +23,6 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
   const [providers, setProviders] = useState<any[]>([])
   const [providerModels, setProviderModels] = useState<string[]>([])
   const [fetchingModels, setFetchingModels] = useState(false)
-  const [tools, setTools] = useState<string[]>(agent.tools || [])
   const [skills, setSkills] = useState<string[]>(agent.skills || [])
   const [mcpServers, setMcpServers] = useState<string[]>(
     (agent.mcp_servers || []).map((m: any) => typeof m === 'string' ? m : m.name)
@@ -114,10 +105,6 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
     setFetchingModels(false)
   }
 
-  const toggleTool = (toolId: string) => {
-    setTools((prev: string[]) => prev.includes(toolId) ? prev.filter(t => t !== toolId) : [...prev, toolId])
-  }
-
   const toggleSkill = (skillName: string) => {
     setSkills((prev: string[]) => prev.includes(skillName) ? prev.filter(s => s !== skillName) : [...prev, skillName])
   }
@@ -153,7 +140,6 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
           description,
           model,
           provider: providerId,
-          tools,
           skills,
           mcp_servers: mcpServers,
           handoff_enabled: handoffTargets.length > 0,
@@ -369,32 +355,6 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
                 </div>
               )}
             </div>
-
-            {/* Legacy Tools */}
-            {AVAILABLE_TOOLS.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Legacy Tools</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {AVAILABLE_TOOLS.map(tool => {
-                    const active = tools.includes(tool.id)
-                    return (
-                      <button
-                        key={tool.id}
-                        onClick={() => toggleTool(tool.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 transition-all ${
-                          active
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                            : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
-                        }`}
-                      >
-                        <span className="text-base">{tool.icon}</span>
-                        {tool.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Handoff */}
             <div>

@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import { 
   Heart, Plus, X, Cpu, TerminalWindow, 
-  Robot, User, PencilSimple, CheckCircle
+  Robot, User, PencilSimple, CheckCircle, Lightbulb
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
 import PipelineCanvas from './PipelineCanvas'
+import SkillsPanel from './SkillsPanel'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -342,7 +343,7 @@ export default function SoftLabDashboard() {
   }
 
   const [editingAgent, setEditingAgent] = useState<any>(null)
-  const [view, setView] = useState<'dashboard' | 'providers'>('dashboard')
+  const [view, setView] = useState<'dashboard' | 'providers' | 'skills'>('dashboard')
 
   const handleAgentClick = async (agentName: string) => {
     try {
@@ -473,6 +474,14 @@ export default function SoftLabDashboard() {
                 <Cpu size={14} />
                 Providers
               </button>
+              <button
+                onClick={() => setView('skills')}
+                className="px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5"
+                style={view === 'skills' ? { backgroundColor: colors.primary, color: '#fff', boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' } : { color: colors.textSecondary }}
+              >
+                <Lightbulb size={14} />
+                Skills
+              </button>
             </nav>
             <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white" style={{ backgroundColor: colors.primary, boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' }}>
               <Plus size={16} weight="bold" />
@@ -484,6 +493,8 @@ export default function SoftLabDashboard() {
       {/* Main Content */}
       {view === 'providers' ? (
         <ProvidersPanel onClose={() => setView('dashboard')} embedded />
+      ) : view === 'skills' ? (
+        <SkillsPanel onClose={() => setView('dashboard')} embedded />
       ) : (
       <div className="flex-1 grid grid-cols-[280px_1fr_320px] gap-4 p-4 overflow-hidden">
         {/* Agent List */}

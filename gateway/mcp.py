@@ -30,14 +30,16 @@ from gateway.config import settings
 
 logger = logging.getLogger(__name__)
 
-MCP_CONFIG_PATH = Path(settings.data_dir) / "mcp.json"
+def _mcp_config_path() -> Path:
+    return Path(settings.data_dir) / "mcp.json"
 
 
 def _load_config() -> dict:
-    if not MCP_CONFIG_PATH.exists():
+    path = _mcp_config_path()
+    if not path.exists():
         return {"servers": {}}
     try:
-        return json.loads(MCP_CONFIG_PATH.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {"servers": {}}
 
@@ -144,6 +146,42 @@ class McpBridge:
     async def stop(self):
         for handle in self.servers.values():
             await handle.close()
+
+    def reset(self):
+        cfg = _load_config()
+        self.servers = {
+            name: McpServerHandle(name, s) for name, s in (cfg.get("servers") or {}).items()
+        }
+        self.tool_defs = []
+        self._tool_map = {}
+
+
+def get_server_config() -> dict:
+    """Public view of the MCP server config (no secrets leaked)."""
+    cfg = _load_config()
+    servers = {}
+    for name, s in (cfg.get("servers") or {}).items():
+        view = dict(s)
+        if view.get("env"):
+            view["env"] = {k: ("***" if v else "") for k, v in view["env"].items()}
+        servers[name] = view
+    return {"servers": servers}
+
+
+def save_server_config(servers: dict) -> dict:
+    """Persist the MCP server config to data/mcp.json."""
+    path = _mcp_config_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"servers": servers}
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return {"servers": servers}
+
+
+async def reload_servers() -> None:
+    """Re-read config and reconnect all MCP servers."""
+    await mcp_bridge.stop()
+    mcp_bridge.reset()
+    await mcp_bridge.start()
 
 
 # singleton

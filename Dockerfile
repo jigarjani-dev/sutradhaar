@@ -40,6 +40,8 @@ COPY gateway/ gateway/
 COPY templates/ templates/
 COPY samples/ samples/
 COPY app.py .
+COPY tests/ tests/
+COPY pytest.ini .
 
 RUN mkdir -p /app/data/agents /app/data/credentials
 

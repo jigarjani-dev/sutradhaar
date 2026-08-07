@@ -28,9 +28,11 @@ import yaml
 
 from gateway.config import settings
 
-SKILLS_ROOT = Path(settings.data_dir) / "skills"
-
 _frontmatter_re = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
+
+
+def _skills_root() -> Path:
+    return Path(settings.data_dir) / "skills"
 
 
 def _read_skill_dir(skill_dir: Path) -> dict | None:
@@ -73,10 +75,11 @@ def _read_skill_dir(skill_dir: Path) -> dict | None:
 
 def list_skills() -> list[dict]:
     """List all skills available on disk (SKILL.md folders)."""
-    if not SKILLS_ROOT.exists():
+    root = _skills_root()
+    if not root.exists():
         return []
     result = []
-    for child in sorted(SKILLS_ROOT.iterdir()):
+    for child in sorted(root.iterdir()):
         if child.is_dir():
             skill = _read_skill_dir(child)
             if skill:
