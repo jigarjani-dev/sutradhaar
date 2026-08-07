@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
+import ReactMarkdown from 'react-markdown'
 import { 
   Heart, Plus, X, Cpu, TerminalWindow, 
   Robot, User, PencilSimple
@@ -100,7 +101,9 @@ function ChatBubble({ message }: { message: any }) {
           <span className="text-xs font-semibold" style={{ color: message.color }}>{message.agent}</span>
           <span className="text-xs" style={{ color: colors.textMuted }}>{message.time}</span>
         </div>
-        <div className={`text-sm leading-relaxed p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'}`} style={{ backgroundColor: `${message.color}08`, color: colors.text }}>{message.text}</div>
+        <div className={`text-sm leading-relaxed p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} prose prose-sm max-w-none prose-headings:mb-2 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-code:bg-gray-100 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-[12px]`} style={{ backgroundColor: `${message.color}08`, color: colors.text }}>
+          <ReactMarkdown>{message.text || ''}</ReactMarkdown>
+        </div>
       </div>
     </motion.div>
   )
