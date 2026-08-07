@@ -4,6 +4,7 @@ import {
   Heart, Plus, X, Cpu, TerminalWindow, 
   Robot, User
 } from '@phosphor-icons/react'
+import AgentEditor from './AgentEditor'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -47,14 +48,14 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-function AgentCard({ agent, isSelected, onClick }: { agent: any; isSelected: boolean; onClick: () => void }) {
+function AgentCard({ agent, isSelected, onClick: _onClick, onEdit }: { agent: any; isSelected: boolean; onClick: () => void; onEdit: () => void }) {
   const color = colors.agents[agent.name.charCodeAt(0) % colors.agents.length]
   return (
     <motion.button
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200"
+      onClick={onEdit}
+      className="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer"
       style={{
         backgroundColor: isSelected ? `${color}10` : colors.surface,
         borderColor: isSelected ? color : colors.border,
@@ -184,6 +185,40 @@ export default function SoftLabDashboard() {
     }
   }
 
+  const [editingAgent, setEditingAgent] = useState<any>(null)
+
+  const handleAgentClick = async (agentName: string) => {
+    try {
+      const res = await fetch(`${API}/agents/${agentName}`)
+      const data = await res.json()
+      setEditingAgent(data)
+    } catch (err) {
+      console.error('Failed to load agent:', err)
+    }
+  }
+
+  const handleEditorSave = async () => {
+    // Refresh agents list
+    try {
+      const res = await fetch(`${API}/agents`)
+      const data = await res.json()
+      setAgents(data)
+    } catch (err) {
+      console.error('Failed to refresh agents:', err)
+    }
+  }
+
+  const handleEditorDelete = async () => {
+    // Refresh agents list
+    try {
+      const res = await fetch(`${API}/agents`)
+      const data = await res.json()
+      setAgents(data)
+    } catch (err) {
+      console.error('Failed to refresh agents:', err)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: colors.bg }}>
       {/* Header */}
@@ -215,7 +250,13 @@ export default function SoftLabDashboard() {
           </div>
           <div className="space-y-3">
             {agents.map(agent => (
-              <AgentCard key={agent.name} agent={agent} isSelected={selectedAgent === agent.name} onClick={() => setSelectedAgent(agent.name)} />
+              <AgentCard
+                key={agent.name}
+                agent={agent}
+                isSelected={selectedAgent === agent.name}
+                onClick={() => setSelectedAgent(agent.name)}
+                onEdit={() => handleAgentClick(agent.name)}
+              />
             ))}
           </div>
         </aside>
@@ -271,6 +312,17 @@ export default function SoftLabDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Agent Editor */}
+      {editingAgent && (
+        <AgentEditor
+          agent={editingAgent}
+          allAgents={agents}
+          onClose={() => setEditingAgent(null)}
+          onSave={handleEditorSave}
+          onDelete={handleEditorDelete}
+        />
+      )}
     </div>
   )
 }
