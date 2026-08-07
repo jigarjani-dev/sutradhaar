@@ -1,0 +1,11 @@
+name: "dev-agent"
+model: "deepseek-chat"
+description: "Developer - writes code from user stories"
+tools: []
+handoff:
+  enabled: true
+  targets: ["qa-agent"]
+orchestrator:
+  enabled: false
+  rules: []
+mcp_servers: []

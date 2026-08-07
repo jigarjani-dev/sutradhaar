@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+
+  --color-navy-950: #060f1e;
+  --color-navy-900: #0a1628;
+  --color-navy-800: #0f1f38;
+  --color-navy-700: #162a4a;
+  --color-navy-600: #1e3558;
+  --color-grid: #1a3050;
+  --color-copper: #e8a850;
+  --color-copper-dim: #a07030;
+  --color-copper-glow: rgba(232, 168, 80, 0.15);
+  --color-paper: #f0f0e8;
+  --color-paper-dim: #888878;
+  --color-amber: #f0c060;
+}
+
+@layer base {
+  body {
+    @apply bg-navy-950 text-paper font-sans antialiased;
+    background-image:
+      linear-gradient(rgba(26, 48, 80, 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(26, 48, 80, 0.4) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--color-navy-600); border-radius: 2px; }
+}
+
+@layer components {
+  .panel-glass {
+    @apply bg-navy-900/80 backdrop-blur-sm border border-navy-700/60 rounded-lg;
+  }
+  .btn-primary {
+    @apply bg-copper text-navy-950 font-semibold px-4 py-2 rounded-lg
+           transition-all duration-150 active:scale-[0.96]
+           hover:shadow-[0_0_20px_rgba(232,168,80,0.25)];
+  }
+  .btn-ghost {
+    @apply text-paper-dim hover:text-paper transition-colors duration-150 px-3 py-1.5 rounded-lg;
+  }
+  .label-xs {
+    @apply font-mono text-[10px] uppercase tracking-[0.15em] text-paper-dim;
+  }
+}

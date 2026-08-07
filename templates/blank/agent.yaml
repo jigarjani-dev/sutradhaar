@@ -1,0 +1,11 @@
+name: ""
+model: "deepseek-chat"
+description: ""
+tools: []
+handoff:
+  enabled: false
+  targets: []
+orchestrator:
+  enabled: false
+  rules: []
+mcp_servers: []

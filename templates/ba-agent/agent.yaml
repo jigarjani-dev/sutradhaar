@@ -1,0 +1,11 @@
+name: "ba-agent"
+model: "deepseek-chat"
+description: "Business Analyst - writes user stories and requirements"
+tools: []
+handoff:
+  enabled: true
+  targets: ["dev-agent"]
+orchestrator:
+  enabled: false
+  rules: []
+mcp_servers: []

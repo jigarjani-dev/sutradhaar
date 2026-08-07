@@ -1,0 +1,10 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34
+a2a-sdk>=1.1.0
+openai>=1.70
+aiosqlite>=0.20
+pydantic>=2.10
+pydantic-settings>=2.7
+pyyaml>=6.0
+httpx>=0.28
+sse-starlette>=2.0

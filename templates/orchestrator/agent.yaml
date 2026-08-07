@@ -1,0 +1,15 @@
+name: "orchestrator"
+model: "deepseek-chat"
+description: "Routes user messages to the right agent based on context"
+tools: []
+handoff:
+  enabled: true
+  targets: []
+orchestrator:
+  enabled: true
+  rules:
+    - match: ["expense", "spent", "bought", "budget", "money", "finance", "cost"]
+      target: "lakshmi"
+    - match: ["build", "code", "develop", "feature", "app", "software"]
+      target: "ba-agent"
+mcp_servers: []

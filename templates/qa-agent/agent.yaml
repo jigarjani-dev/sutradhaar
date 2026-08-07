@@ -1,0 +1,11 @@
+name: "qa-agent"
+model: "deepseek-chat"
+description: "QA Engineer - reviews code and finds bugs"
+tools: []
+handoff:
+  enabled: true
+  targets: ["dev-agent"]
+orchestrator:
+  enabled: false
+  rules: []
+mcp_servers: []

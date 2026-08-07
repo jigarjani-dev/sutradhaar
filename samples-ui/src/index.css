@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+button {
+  cursor: pointer;
+  font: inherit;
+}
+
+/* ── Sample 1: Blueprint ── */
+/* navy #0a1628, copper #e8a850, glass panels, grid bg */
+/* ── Sample 2: Editorial ── */
+/* cream #f8f5f0, charcoal #1a1a1a, vermillion #cc3333, serif headings */
+/* ── Sample 3: Brutalist ── */
+/* black #000, white #fff, green #00ff41, no radius, thick borders */
+/* ── Sample 4: Dark Luxe ── */
+/* charcoal #0a0a0a, gold #c9a84c, thin borders, generous gaps */
+/* ── Sample 5: Soft Lab ── */
+/* warm gray #fafaf8, pastel accents, large radius, pill buttons */
+
+.sample-link {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sample-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}

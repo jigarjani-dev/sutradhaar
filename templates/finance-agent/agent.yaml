@@ -1,0 +1,15 @@
+name: "lakshmi"
+model: "deepseek-chat"
+description: "Personal finance advisor - tracks expenses, categorizes spending, maintains budget sheets"
+tools:
+  - sheets_writer
+  - sheets_reader
+  - ocr_reader
+  - telegram_sender
+handoff:
+  enabled: false
+  targets: []
+orchestrator:
+  enabled: false
+  rules: []
+mcp_servers: []
