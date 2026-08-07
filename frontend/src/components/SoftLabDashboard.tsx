@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { 
   Heart, Plus, X, Cpu, TerminalWindow, 
-  Robot, User
+  Robot, User, PencilSimple
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
@@ -49,14 +49,14 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-function AgentCard({ agent, isSelected, onClick: _onClick, onEdit }: { agent: any; isSelected: boolean; onClick: () => void; onEdit: () => void }) {
+function AgentCard({ agent, isSelected, onClick, onEdit }: { agent: any; isSelected: boolean; onClick: () => void; onEdit: () => void }) {
   const color = colors.agents[agent.name.charCodeAt(0) % colors.agents.length]
   return (
     <motion.button
       whileHover={{ y: -2 }}
       whileTap={{ scale: 0.98 }}
-      onClick={onEdit}
-      className="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer"
+      onClick={onClick}
+      className="w-full text-left p-4 rounded-2xl border-2 transition-all duration-200 cursor-pointer group"
       style={{
         backgroundColor: isSelected ? `${color}10` : colors.surface,
         borderColor: isSelected ? color : colors.border,
@@ -74,6 +74,14 @@ function AgentCard({ agent, isSelected, onClick: _onClick, onEdit }: { agent: an
           </div>
           <div className="text-xs font-medium mb-1" style={{ color }}>{agent.description || 'Agent'}</div>
         </div>
+        <button
+          onClick={e => { e.stopPropagation(); onEdit() }}
+          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+          style={{ color: colors.textMuted }}
+          title="Edit agent"
+        >
+          <PencilSimple size={12} />
+        </button>
       </div>
     </motion.button>
   )
@@ -139,6 +147,8 @@ export default function SoftLabDashboard() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [sending, setSending] = useState(false)
   const [connected, setConnected] = useState(false)
 
   useEffect(() => {
@@ -154,17 +164,7 @@ export default function SoftLabDashboard() {
     ws.onclose = () => setConnected(false)
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data)
-      if (msg.type === 'message') {
-        const color = colors.agents[msg.data.agent?.charCodeAt(0) % colors.agents.length] || colors.primary
-        setChatMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          agent: msg.data.agent,
-          text: msg.data.content,
-          time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-          color,
-          role: msg.data.role,
-        }])
-      } else if (msg.type === 'agent_created') {
+      if (msg.type === 'agent_created') {
         setAgents(prev => [...prev, { name: msg.data.name, status: 'idle', description: 'New agent' }])
       } else if (msg.type === 'agent_deleted') {
         setAgents(prev => prev.filter(a => a.name !== msg.data.name))
@@ -196,6 +196,73 @@ export default function SoftLabDashboard() {
       setEditingAgent(data)
     } catch (err) {
       console.error('Failed to load agent:', err)
+    }
+  }
+
+  // Load persisted chat history when the selected agent changes
+  useEffect(() => {
+    setChatMessages([])
+    if (!selectedAgent) return
+    fetch(`${API}/agents/${selectedAgent}/messages`)
+      .then(r => r.json())
+      .then(data => {
+        const color = colors.agents[selectedAgent.charCodeAt(0) % colors.agents.length] || colors.primary
+        const mapped = (data.messages || []).map((m: any, i: number) => ({
+          id: `${selectedAgent}-hist-${i}`,
+          agent: m.role === 'user' ? 'You' : selectedAgent,
+          text: m.content,
+          time: '',
+          color: m.role === 'user' ? colors.primary : color,
+          role: m.role,
+        }))
+        setChatMessages(mapped)
+      })
+      .catch(() => {})
+  }, [selectedAgent])
+
+  const handleSend = async () => {
+    const text = chatInput.trim()
+    if (!text || !selectedAgent || sending) return
+    setChatInput('')
+    setSending(true)
+    const color = colors.agents[selectedAgent.charCodeAt(0) % colors.agents.length] || colors.primary
+    setChatMessages(prev => [...prev, {
+      id: `u-${Date.now()}`,
+      agent: 'You',
+      text,
+      time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+      color: colors.primary,
+      role: 'user',
+    }])
+    try {
+      const res = await fetch(`${API}/agents/${selectedAgent}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      const data = await res.json()
+      setChatMessages(prev => [...prev, {
+        id: `a-${Date.now()}`,
+        agent: selectedAgent,
+        text: data.response,
+        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+        color,
+        role: 'assistant',
+      }])
+    } catch (err) {
+      console.error('Chat failed:', err)
+    }
+    setSending(false)
+  }
+
+  const handleClearChat = async () => {
+    if (!selectedAgent) return
+    if (!window.confirm(`Clear chat history for ${selectedAgent}?`)) return
+    try {
+      await fetch(`${API}/agents/${selectedAgent}/messages`, { method: 'DELETE' })
+      setChatMessages([])
+    } catch (err) {
+      console.error('Failed to clear chat:', err)
     }
   }
 
@@ -289,9 +356,59 @@ export default function SoftLabDashboard() {
             <h2 className="text-sm font-semibold mb-4" style={{ color: colors.text }}>Pipeline Topology</h2>
             {agents.length > 0 ? <PipelineSVG agents={agents} /> : <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>No agents deployed</div>}
           </div>
-          <div className="rounded-2xl border-2 p-6 h-[300px] overflow-y-auto" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: colors.text }}>Agent Chat</h2>
-            {chatMessages.length === 0 ? <div className="text-sm" style={{ color: colors.textMuted }}>No messages yet</div> : chatMessages.map(msg => <ChatBubble key={msg.id} message={msg} />)}
+          <div className="rounded-2xl border-2 flex flex-col overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: colors.border }}>
+              <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Agent Chat</h2>
+              <div className="flex items-center gap-2">
+                {selectedAgent && chatMessages.length > 0 && (
+                  <button onClick={handleClearChat} className="text-xs px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: colors.textMuted }}>
+                    Clear
+                  </button>
+                )}
+                <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>
+                  {selectedAgent || 'no agent selected'}
+                </span>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {chatMessages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>
+                  {selectedAgent ? 'No messages yet. Say something to start the conversation.' : 'Select an agent to chat'}
+                </div>
+              ) : (
+                chatMessages.map(msg => <ChatBubble key={msg.id} message={msg} />)
+              )}
+              {sending && (
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <motion.div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }} animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity }} />
+                  <motion.div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }} animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.15 }} />
+                  <motion.div className="w-2 h-2 rounded-full" style={{ backgroundColor: colors.primary }} animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.3 }} />
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-3 border-t" style={{ borderColor: colors.border }}>
+              <div className="flex gap-2">
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSend() }}
+                  disabled={!selectedAgent || sending}
+                  placeholder={selectedAgent ? `Message ${selectedAgent}...` : 'Select an agent to chat'}
+                  className="flex-1 px-3 py-2 rounded-xl border-2 text-sm focus:outline-none transition-colors"
+                  style={{ borderColor: colors.border, color: colors.text, backgroundColor: colors.bg }}
+                />
+                <motion.button
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleSend}
+                  disabled={!selectedAgent || sending || !chatInput.trim()}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-white disabled:opacity-40"
+                  style={{ backgroundColor: colors.primary, boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' }}
+                >
+                  Send
+                </motion.button>
+              </div>
+            </div>
           </div>
         </main>
 

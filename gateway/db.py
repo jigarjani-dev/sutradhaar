@@ -22,6 +22,14 @@ CREATE TABLE IF NOT EXISTS messages (
     timestamp TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS summaries (
+    agent_name TEXT NOT NULL,
+    replaces_up_to INTEGER NOT NULL,
+    summary TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (agent_name)
+);
+
 CREATE TABLE IF NOT EXISTS integrations (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,

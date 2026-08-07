@@ -35,6 +35,10 @@ from gateway.providers import (
     seed_presets, list_providers, get_provider, create_provider, update_provider,
     delete_provider, test_connection, fetch_models,
 )
+from gateway.memory import (
+    add_message, get_history, get_latest_summary, clear_history,
+    build_context, summarize_old_turns, format_history_for_api,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -195,10 +199,13 @@ async def api_chat(name: str, data: dict):
 
     try:
         system_prompt = await build_system_prompt(config)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ]
+        await add_message(name, "user", user_message)
+
+        # rebuild context from persisted history
+        history = await get_history(name)
+        summary = await get_latest_summary(name)
+        messages = build_context(history, system_prompt, summary)
+
         tools = config.get("tools", [])
 
         # check if this is an orchestrator
@@ -224,6 +231,15 @@ async def api_chat(name: str, data: dict):
             full_response = f"{clean_response}\n\n[{target}]: {handoff_result}"
         else:
             full_response = response
+
+        await add_message(name, "assistant", full_response)
+
+        # summarize old turns if history outgrew the budget (best-effort)
+        await summarize_old_turns(
+            name, llm_engine, model=config.get("model") or settings.llm_model,
+            provider=config.get("provider"),
+            provider_override=config.get("provider_override"),
+        )
 
         await set_agent_status(name, "idle")
         await ws_manager.emit_message(name, "assistant", full_response)
@@ -255,10 +271,10 @@ async def api_chat_stream(name: str, data: dict):
         raise HTTPException(status_code=400, detail="Message is required")
 
     system_prompt = await build_system_prompt(config)
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ]
+    await add_message(name, "user", user_message)
+    history = await get_history(name)
+    summary = await get_latest_summary(name)
+    messages = build_context(history, system_prompt, summary)
     tools = config.get("tools", [])
 
     async def generate():
@@ -278,6 +294,31 @@ async def api_chat_stream(name: str, data: dict):
             await set_agent_status(name, "idle")
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Chat history ───────────────────────────────────────────────
+
+@app.get("/api/agents/{name}/messages")
+async def api_agent_messages(name: str):
+    agent = await get_agent(name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    history = await get_history(name)
+    summary = await get_latest_summary(name)
+    return {
+        "messages": format_history_for_api(history),
+        "summary": summary["summary"] if summary else None,
+    }
+
+
+@app.delete("/api/agents/{name}/messages")
+async def api_clear_messages(name: str):
+    agent = await get_agent(name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    await clear_history(name)
+    await ws_manager.emit_debug("system", "history_cleared", {"name": name})
+    return {"cleared": name}
 
 
 # ── Integrations ───────────────────────────────────────────────
