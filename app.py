@@ -223,6 +223,12 @@ async def api_chat(name: str, data: dict):
 
         tools = config.get("tools", [])
 
+        thinking_parts: list[str] = []
+
+        async def on_thinking(text: str):
+            thinking_parts.append(text)
+            await ws_manager.emit_thinking(name, text)
+
         # check if this is an orchestrator
         orchestrator_config = config.get("orchestrator", {})
         if orchestrator_config.get("enabled") and orchestrator_config.get("rules"):
@@ -233,7 +239,11 @@ async def api_chat(name: str, data: dict):
                 provider=config.get("provider"),
                 provider_override=config.get("provider_override"),
                 agent_name=name,
+                on_thinking=on_thinking,
             )
+
+        if thinking_parts:
+            await add_message(name, "thinking", "\n".join(thinking_parts))
 
         # check for handoff directive and process it
         handoff_match = re.search(r'---HANDOFF:\s*([\w-]+)\s*---', response)
@@ -261,7 +271,7 @@ async def api_chat(name: str, data: dict):
         await ws_manager.emit_agent_status(name, "idle")
         await ws_manager.emit_message(name, "assistant", full_response)
 
-        return {"agent": name, "response": full_response}
+        return {"agent": name, "response": full_response, "thinking": "\n".join(thinking_parts) or None}
 
     except Exception as e:
         logger.exception(f"Chat error for agent {name}")
@@ -299,14 +309,23 @@ async def api_chat_stream(name: str, data: dict):
         await set_agent_status(name, "thinking")
         await ws_manager.emit_agent_status(name, "thinking")
         await ws_manager.emit_message(name, "user", user_message)
+        thinking_parts: list[str] = []
+
+        async def on_thinking(text: str):
+            thinking_parts.append(text)
+            await ws_manager.emit_thinking(name, text)
+
         try:
             async for chunk in llm_engine.chat_stream(
                 messages, tools=tools, model=config.get("model"),
                 provider=config.get("provider"),
                 provider_override=config.get("provider_override"),
                 agent_name=name,
+                on_thinking=on_thinking,
             ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
+            if thinking_parts:
+                await add_message(name, "thinking", "\n".join(thinking_parts))
             yield "data: [DONE]\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

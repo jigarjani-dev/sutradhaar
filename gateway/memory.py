@@ -109,6 +109,8 @@ def build_context(messages: list[dict], system_prompt: str,
     # fill from most recent backward against budget
     kept: list[dict] = []
     for m in reversed(messages):
+        if m.get("role") == "thinking":
+            continue  # thinking is display-only, never sent back to the model
         cost = estimate_tokens(m.get("content") or "")
         if cost > budget:
             break

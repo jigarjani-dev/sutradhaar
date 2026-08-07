@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import { 
   Heart, Plus, X, Cpu, TerminalWindow, 
-  Robot, User, PencilSimple
+  Robot, User, PencilSimple, CheckCircle
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
@@ -89,7 +89,97 @@ function AgentCard({ agent, isSelected, onClick, onEdit }: { agent: any; isSelec
   )
 }
 
+function ThinkingBar({ text, live }: { text: string; live?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const c = '#9ca3af'
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="mb-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3 py-2.5 rounded-xl border w-full text-left transition-colors hover:bg-gray-50"
+        style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa' }}
+      >
+        <motion.span
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ backgroundColor: c }}
+          animate={live ? { y: [0, -3, 0], opacity: [0.4, 1, 0.4] } : { y: 0, opacity: 0.6 }}
+          transition={live ? { duration: 1.2, repeat: Infinity, ease: 'easeInOut' } : {}}
+        />
+        <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: c }}>Thinking</span>
+        <span className="text-xs" style={{ color: '#b0b6bf' }}>{text.length} chars</span>
+        <motion.span
+          className="ml-auto text-sm"
+          style={{ color: '#b0b6bf' }}
+          animate={open ? { rotate: 180 } : { rotate: 0 }}
+        >
+          ▾
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1.5 p-4 rounded-xl border text-sm leading-relaxed whitespace-pre-wrap italic" style={{ borderColor: '#e5e7eb', backgroundColor: '#fafafa', color: '#6b7280', fontFamily: 'Georgia, "Times New Roman", serif' }}>
+              {text}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+function ToolCallBar({ tc }: { tc: any }) {
+  const [open, setOpen] = useState(false)
+  const isRunning = tc.status === 'running'
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }} className="mb-2">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 px-3 py-2 rounded-xl border w-full text-left transition-colors hover:bg-gray-50"
+        style={{ borderColor: colors.border, backgroundColor: colors.bg }}
+      >
+        {isRunning ? (
+          <motion.span className="w-3 h-3 rounded-full border-2 shrink-0" style={{ borderColor: `${colors.primary}40`, borderTopColor: colors.primary }} animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }} />
+        ) : (
+          <CheckCircle size={14} weight="bold" style={{ color: colors.emerald }} />
+        )}
+        <span className="text-xs font-mono" style={{ color: colors.text }}>{tc.tool}</span>
+        <span className="text-[10px]" style={{ color: colors.textMuted }}>{isRunning ? 'running...' : 'done'}</span>
+        <span className="ml-auto text-xs" style={{ color: colors.textMuted }}>▾</span>
+      </button>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <pre className="mt-1 p-3 rounded-xl border text-[11px] leading-relaxed whitespace-pre-wrap break-all max-h-48 overflow-y-auto" style={{ borderColor: colors.border, backgroundColor: colors.bg, color: colors.textSecondary }}>
+              {JSON.stringify(tc.args, null, 2)}
+              {tc.result ? `\n\n${tc.result}` : ''}
+            </pre>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
 function ChatBubble({ message }: { message: any }) {
+  if (message.role === 'thinking') {
+    return <ThinkingBar text={message.text} live={message.id.startsWith('think-')} />
+  }
+  if (message.role === 'tool') {
+    return <ToolCallBar tc={message.tc || message} />
+  }
   const isUser = message.role === 'user'
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex gap-3 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -113,13 +203,22 @@ function ChatBubble({ message }: { message: any }) {
 
 export default function SoftLabDashboard() {
   const [agents, setAgents] = useState<any[]>([])
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null)
+  const [selectedAgent, setSelectedAgent] = useState<string | null>(() => localStorage.getItem('selectedAgent'))
   const [showModal, setShowModal] = useState(false)
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
   const [connected, setConnected] = useState(false)
   const [agentStates, setAgentStates] = useState<Record<string, any>>({})
+  const selectedRef = useRef<string | null>(null)
+  useEffect(() => {
+    selectedRef.current = selectedAgent
+    if (selectedAgent) {
+      localStorage.setItem('selectedAgent', selectedAgent)
+    } else {
+      localStorage.removeItem('selectedAgent')
+    }
+  }, [selectedAgent])
 
   useEffect(() => {
     // Fetch agents
@@ -176,6 +275,44 @@ export default function SoftLabDashboard() {
             },
           }
         })
+        if (selectedRef.current === msg.data.agent) {
+          const agentColor = colors.agents[msg.data.agent.charCodeAt(0) % colors.agents.length] || colors.primary
+          setChatMessages(prev => [...prev, {
+            id: `tool-${ts}`,
+            role: 'tool',
+            agent: msg.data.agent,
+            tc: {
+              tool: msg.data.tool,
+              status: msg.data.status,
+              args: msg.data.args,
+              result: msg.data.result,
+              ts,
+            },
+            time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+            color: agentColor,
+          }])
+        }
+      } else if (msg.type === 'thinking') {
+        if (selectedRef.current === msg.data.agent) {
+          const agentColor = colors.agents[msg.data.agent.charCodeAt(0) % colors.agents.length] || colors.primary
+          setChatMessages(prev => {
+            const last = prev[prev.length - 1]
+            // merge streaming thinking into the last thinking entry
+            if (last && last.role === 'thinking' && last.id.startsWith('think-')) {
+              return [
+                ...prev.slice(0, -1),
+                { ...last, text: last.text + msg.data.content },
+              ]
+            }
+            return [...prev, {
+              id: `think-${Date.now()}`,
+              role: 'thinking',
+              agent: msg.data.agent,
+              text: msg.data.content,
+              color: agentColor,
+            }]
+          })
+        }
       } else if (msg.type === 'handoff') {
         setAgentStates(prev => ({
           ...prev,

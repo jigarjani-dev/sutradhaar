@@ -53,6 +53,12 @@ class WebSocketManager:
             "content": content,
         })
 
+    async def emit_thinking(self, agent_name: str, content: str):
+        await self.broadcast("thinking", {
+            "agent": agent_name,
+            "content": content,
+        })
+
     async def emit_tool_call(self, agent_name: str, tool: str, args: dict, result: str):
         """Broadcast a tool invocation. result == 'running' means started."""
         await self.broadcast("tool_call", {

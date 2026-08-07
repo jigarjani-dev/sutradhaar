@@ -8,6 +8,7 @@ Clients are cached per (base_url, api_key) so agents can use different providers
 """
 
 import json
+from typing import Awaitable, Callable
 
 from openai import AsyncOpenAI
 
@@ -56,6 +57,7 @@ class LLMEngine:
         provider: str | None = None,
         provider_override: dict | None = None,
         agent_name: str | None = None,
+        on_thinking: Callable[[str], Awaitable[None]] | None = None,
     ) -> str:
         """
         Send messages to the LLM with optional tool calling.
@@ -65,6 +67,10 @@ class LLMEngine:
         tool_defs = get_tool_definitions(tools or [])
 
         full_messages = list(messages)
+
+        async def _emit_thinking(text: str):
+            if text and on_thinking:
+                await on_thinking(text)
 
         # allow up to 5 tool-call roundtrips to prevent infinite loops
         for _ in range(5):
@@ -77,6 +83,11 @@ class LLMEngine:
 
             response = await client.chat.completions.create(**kwargs)
             msg = response.choices[0].message
+
+            # capture reasoning/thinking if the model provides it
+            thinking = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None)
+            if isinstance(thinking, str):
+                await _emit_thinking(thinking)
 
             # if no tool calls, return text
             if not msg.tool_calls:
@@ -127,6 +138,7 @@ class LLMEngine:
         provider: str | None = None,
         provider_override: dict | None = None,
         agent_name: str | None = None,
+        on_thinking: Callable[[str], Awaitable[None]] | None = None,
     ):
         """
         Stream response tokens from the LLM.
@@ -155,6 +167,11 @@ class LLMEngine:
                 delta = chunk.choices[0].delta if chunk.choices else None
                 if not delta:
                     continue
+
+                # stream thinking/reasoning deltas if present
+                think = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+                if isinstance(think, str) and think and on_thinking:
+                    await on_thinking(think)
 
                 if delta.content:
                     content_parts.append(delta.content)
