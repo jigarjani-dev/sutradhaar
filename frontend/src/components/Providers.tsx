@@ -36,9 +36,10 @@ function formatDate(iso: string): string {
 
 interface ProvidersPanelProps {
   onClose: () => void
+  embedded?: boolean
 }
 
-export default function ProvidersPanel({ onClose }: ProvidersPanelProps) {
+export default function ProvidersPanel({ onClose, embedded }: ProvidersPanelProps) {
   const [providers, setProviders] = useState<any[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -138,6 +139,163 @@ export default function ProvidersPanel({ onClose }: ProvidersPanelProps) {
 
   const inputCls = `w-full px-3 py-2 rounded-lg border text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all`
 
+  const header = (
+    <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#6366f115' }}>
+          <PlugsConnected size={20} weight="duotone" style={{ color: '#6366f1' }} />
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Model Providers</h2>
+          <p className="text-xs text-gray-500">OpenAI, Claude, DeepSeek, OpenCode Go/Zen, custom</p>
+        </div>
+      </div>
+      {!embedded && (
+        <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <X size={20} className="text-gray-500" />
+        </button>
+      )}
+    </div>
+  )
+
+  const body = (
+    <div className={embedded ? '' : 'flex-1 overflow-y-auto px-6 py-4 space-y-4'}>
+      {providers.length === 0 && !adding && (
+        <p className="text-sm text-gray-400">No providers yet. Add one below.</p>
+      )}
+
+      {providers.map(p => {
+        const isOpen = expanded === p.id
+        const tr = testResult[p.id]
+        return (
+          <div key={p.id} className="rounded-2xl border-2 transition-colors" style={{ borderColor: isOpen ? '#6366f1' : colors.border, backgroundColor: colors.surface }}>
+            <button onClick={() => setExpanded(isOpen ? null : p.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+              {isOpen ? <CaretDown size={14} style={{ color: colors.textMuted }} /> : <CaretRight size={14} style={{ color: colors.textMuted }} />}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-gray-900">{p.name}</span>
+                  {p.has_key && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>key set</span>
+                  )}
+                </div>
+                <div className="text-xs text-gray-500 truncate">{p.base_url}</div>
+              </div>
+              <span className="text-[10px] font-mono text-gray-400">{p.models?.length || 0} models</span>
+            </button>
+
+            {isOpen && (
+              <div className="px-4 pb-4 pt-1 space-y-3 border-t border-gray-100">
+                <div className="grid grid-cols-2 gap-2 pt-3">
+                  <div className="text-xs text-gray-500">ID</div>
+                  <div className="text-xs text-gray-900 font-mono">{p.id}</div>
+                  <div className="text-xs text-gray-500">API key</div>
+                  <div className="text-xs text-gray-900 font-mono">{p.api_key || 'not set'}</div>
+                  <div className="text-xs text-gray-500">Created</div>
+                  <div className="text-xs text-gray-900">{formatDate(p.created_at)}</div>
+                </div>
+
+                {tr && (
+                  <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: tr.ok ? '#ecfdf5' : '#fef2f2', color: tr.ok ? '#059669' : '#dc2626' }}>
+                    {tr.ok ? <CheckCircle size={14} weight="bold" /> : <WarningCircle size={14} weight="bold" />}
+                    <span className="truncate">{tr.msg}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => handleTest(p.id)} disabled={testing === p.id}
+                    className="flex-1 px-3 py-2 rounded-lg text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 transition-colors disabled:opacity-50">
+                    {testing === p.id ? 'Testing...' : 'Test connection'}
+                  </button>
+                  <button onClick={() => handleFetch(p.id)} disabled={fetching === p.id}
+                    className="flex-1 px-3 py-2 rounded-lg text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50">
+                    {fetching === p.id ? 'Fetching...' : 'Fetch models'}
+                  </button>
+                  <button onClick={() => startEdit(p)} className="px-3 py-2 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">Edit</button>
+                  <button onClick={() => handleDelete(p.id)} className="px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">Delete</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {adding && editing ? (
+        <div className="rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: colors.primary, backgroundColor: '#fafaff' }}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-900">{providers.find(p => p.id === editing.id) ? `Edit ${editing.id}` : 'Add Provider'}</h3>
+            <button onClick={() => { setAdding(false); setEditing(null) }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">ID</label>
+            <input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} className={inputCls} placeholder="my-provider" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+            <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className={inputCls} placeholder="My Provider" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Base URL</label>
+            <input value={editing.base_url} onChange={e => setEditing({ ...editing, base_url: e.target.value })} className={inputCls} placeholder="https://.../v1" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+            <input type="password" value={editing.api_key} onChange={e => setEditing({ ...editing, api_key: e.target.value })} className={inputCls} placeholder="sk-..." />
+            <p className="text-[10px] text-gray-400 mt-1">Leave blank to keep the existing key. Local servers (Ollama) can use "ollama".</p>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => { setAdding(false); setEditing(null) }} className="flex-1 px-3 py-2 rounded-lg text-sm text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+            <button onClick={handleSave} className="flex-1 px-3 py-2 rounded-lg text-sm text-white bg-indigo-500 hover:bg-indigo-600">Save Provider</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => { setAdding(true); setEditing({ id: '', name: '', base_url: '', api_key: '' }) }}
+          className="w-full py-3 rounded-2xl border-2 border-dashed text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
+          style={{ borderColor: colors.border }}>
+          <Plus size={16} weight="bold" /> Add custom provider
+        </button>
+      )}
+    </div>
+  )
+
+  const presetsFooter = (
+    <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Quick presets</p>
+      <div className="flex flex-wrap gap-2">
+        {PRESET_CARDS.map(p => (
+          <button key={p.id} onClick={() => startPreset(p)}
+            className="px-3 py-1.5 rounded-full text-xs font-medium border-2 text-gray-600 bg-white hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+            style={{ borderColor: colors.border }}>
+            {p.name}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+
+  if (embedded) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f9fa' }}>
+        {header}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 max-w-3xl w-full mx-auto">
+          {body}
+        </div>
+        {presetsFooter}
+      </div>
+    )
+  }
+
+  if (embedded) {
+    return (
+      <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f8f9fa' }}>
+        {header}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 max-w-3xl w-full mx-auto">
+          {body}
+        </div>
+        {presetsFooter}
+      </div>
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -157,133 +315,9 @@ export default function ProvidersPanel({ onClose }: ProvidersPanelProps) {
         className="w-[560px] h-full bg-white shadow-2xl flex flex-col overflow-hidden"
         style={{ borderLeft: '4px solid #6366f1' }}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#6366f115' }}>
-              <PlugsConnected size={20} weight="duotone" style={{ color: '#6366f1' }} />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">Model Providers</h2>
-              <p className="text-xs text-gray-500">OpenAI, Claude, DeepSeek, OpenCode Go/Zen, custom</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} className="text-gray-500" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-          {providers.length === 0 && !adding && (
-            <p className="text-sm text-gray-400">No providers yet. Add one below.</p>
-          )}
-
-          {providers.map(p => {
-            const isOpen = expanded === p.id
-            const tr = testResult[p.id]
-            return (
-              <div key={p.id} className="rounded-2xl border-2 transition-colors" style={{ borderColor: isOpen ? '#6366f1' : colors.border, backgroundColor: colors.surface }}>
-                <button onClick={() => setExpanded(isOpen ? null : p.id)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                  {isOpen ? <CaretDown size={14} style={{ color: colors.textMuted }} /> : <CaretRight size={14} style={{ color: colors.textMuted }} />}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm text-gray-900">{p.name}</span>
-                      {p.has_key && (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>key set</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">{p.base_url}</div>
-                  </div>
-                  <span className="text-[10px] font-mono text-gray-400">{p.models?.length || 0} models</span>
-                </button>
-
-                {isOpen && (
-                  <div className="px-4 pb-4 pt-1 space-y-3 border-t border-gray-100">
-                    <div className="grid grid-cols-2 gap-2 pt-3">
-                      <div className="text-xs text-gray-500">ID</div>
-                      <div className="text-xs text-gray-900 font-mono">{p.id}</div>
-                      <div className="text-xs text-gray-500">API key</div>
-                      <div className="text-xs text-gray-900 font-mono">{p.api_key || 'not set'}</div>
-                      <div className="text-xs text-gray-500">Created</div>
-                      <div className="text-xs text-gray-900">{formatDate(p.created_at)}</div>
-                    </div>
-
-                    {tr && (
-                      <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: tr.ok ? '#ecfdf5' : '#fef2f2', color: tr.ok ? '#059669' : '#dc2626' }}>
-                        {tr.ok ? <CheckCircle size={14} weight="bold" /> : <WarningCircle size={14} weight="bold" />}
-                        <span className="truncate">{tr.msg}</span>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 pt-1">
-                      <button onClick={() => handleTest(p.id)} disabled={testing === p.id}
-                        className="flex-1 px-3 py-2 rounded-lg text-xs font-medium text-white bg-indigo-500 hover:bg-indigo-600 transition-colors disabled:opacity-50">
-                        {testing === p.id ? 'Testing...' : 'Test connection'}
-                      </button>
-                      <button onClick={() => handleFetch(p.id)} disabled={fetching === p.id}
-                        className="flex-1 px-3 py-2 rounded-lg text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50">
-                        {fetching === p.id ? 'Fetching...' : 'Fetch models'}
-                      </button>
-                      <button onClick={() => startEdit(p)} className="px-3 py-2 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">Edit</button>
-                      <button onClick={() => handleDelete(p.id)} className="px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">Delete</button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-
-          {adding && editing ? (
-            <div className="rounded-2xl border-2 p-4 space-y-3" style={{ borderColor: colors.primary, backgroundColor: '#fafaff' }}>
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900">{providers.find(p => p.id === editing.id) ? `Edit ${editing.id}` : 'Add Provider'}</h3>
-                <button onClick={() => { setAdding(false); setEditing(null) }} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">ID</label>
-                <input value={editing.id} onChange={e => setEditing({ ...editing, id: e.target.value.toLowerCase().replace(/\s+/g, '-') })} className={inputCls} placeholder="my-provider" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
-                <input value={editing.name} onChange={e => setEditing({ ...editing, name: e.target.value })} className={inputCls} placeholder="My Provider" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Base URL</label>
-                <input value={editing.base_url} onChange={e => setEditing({ ...editing, base_url: e.target.value })} className={inputCls} placeholder="https://.../v1" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
-                <input type="password" value={editing.api_key} onChange={e => setEditing({ ...editing, api_key: e.target.value })} className={inputCls} placeholder="sk-..." />
-                <p className="text-[10px] text-gray-400 mt-1">Leave blank to keep the existing key. Local servers (Ollama) can use "ollama".</p>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={() => { setAdding(false); setEditing(null) }} className="flex-1 px-3 py-2 rounded-lg text-sm text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
-                <button onClick={handleSave} className="flex-1 px-3 py-2 rounded-lg text-sm text-white bg-indigo-500 hover:bg-indigo-600">Save Provider</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => { setAdding(true); setEditing({ id: '', name: '', base_url: '', api_key: '' }) }}
-              className="w-full py-3 rounded-2xl border-2 border-dashed text-sm font-medium text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
-              style={{ borderColor: colors.border }}>
-              <Plus size={16} weight="bold" /> Add custom provider
-            </button>
-          )}
-        </div>
-
-        {/* Presets footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Quick presets</p>
-          <div className="flex flex-wrap gap-2">
-            {PRESET_CARDS.map(p => (
-              <button key={p.id} onClick={() => startPreset(p)}
-                className="px-3 py-1.5 rounded-full text-xs font-medium border-2 text-gray-600 bg-white hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-                style={{ borderColor: colors.border }}>
-                {p.name}
-              </button>
-            ))}
-          </div>
-        </div>
+        {header}
+        {body}
+        {presetsFooter}
       </motion.div>
     </motion.div>
   )

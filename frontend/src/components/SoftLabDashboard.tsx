@@ -187,7 +187,7 @@ export default function SoftLabDashboard() {
   }
 
   const [editingAgent, setEditingAgent] = useState<any>(null)
-  const [showProviders, setShowProviders] = useState(false)
+  const [view, setView] = useState<'dashboard' | 'providers'>('dashboard')
 
   const handleAgentClick = async (agentName: string) => {
     try {
@@ -235,10 +235,23 @@ export default function SoftLabDashboard() {
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: connected ? colors.emerald : colors.textMuted }} />
               <span className="text-xs" style={{ color: colors.textSecondary }}>{agents.length} agents</span>
             </div>
-            <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} onClick={() => setShowProviders(true)} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ backgroundColor: colors.primaryLight, color: colors.primary, border: `1px solid ${colors.primary}30` }}>
-              <Cpu size={16} />
-              Providers
-            </motion.button>
+            <nav className="flex items-center gap-1 p-1 rounded-full" style={{ backgroundColor: colors.bg, border: `1px solid ${colors.border}` }}>
+              <button
+                onClick={() => setView('dashboard')}
+                className="px-4 py-1.5 rounded-full text-sm font-medium transition-all"
+                style={view === 'dashboard' ? { backgroundColor: colors.primary, color: '#fff', boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' } : { color: colors.textSecondary }}
+              >
+                Dashboard
+              </button>
+              <button
+                onClick={() => setView('providers')}
+                className="px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center gap-1.5"
+                style={view === 'providers' ? { backgroundColor: colors.primary, color: '#fff', boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' } : { color: colors.textSecondary }}
+              >
+                <Cpu size={14} />
+                Providers
+              </button>
+            </nav>
             <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.98 }} onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white" style={{ backgroundColor: colors.primary, boxShadow: '0 2px 8px rgba(99, 102, 241, 0.3)' }}>
               <Plus size={16} weight="bold" />
               New Agent
@@ -247,6 +260,9 @@ export default function SoftLabDashboard() {
       </header>
 
       {/* Main Content */}
+      {view === 'providers' ? (
+        <ProvidersPanel onClose={() => setView('dashboard')} embedded />
+      ) : (
       <div className="flex-1 grid grid-cols-[280px_1fr_320px] gap-4 p-4 overflow-hidden">
         {/* Agent List */}
         <aside className="rounded-2xl border-2 p-4 overflow-y-auto" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
@@ -290,6 +306,7 @@ export default function SoftLabDashboard() {
           </div>
         </aside>
       </div>
+      )}
 
       {/* New Agent Modal */}
       <AnimatePresence>
@@ -328,11 +345,6 @@ export default function SoftLabDashboard() {
           onSave={handleEditorSave}
           onDelete={handleEditorDelete}
         />
-      )}
-
-      {/* Providers Panel */}
-      {showProviders && (
-        <ProvidersPanel onClose={() => setShowProviders(false)} />
       )}
     </div>
   )
