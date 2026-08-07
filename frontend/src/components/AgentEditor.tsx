@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, FloppyDisk, Trash, Cpu } from '@phosphor-icons/react'
+import { X, FloppyDisk, Trash, Cpu, ArrowClockwise } from '@phosphor-icons/react'
 
 const API = '/api'
 
@@ -27,6 +27,10 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
   const [description, setDescription] = useState(agent.description || '')
   const [soulMd, setSoulMd] = useState(agent.soul_md || `# ${agent.name}\n\nYou are a helpful assistant.`)
   const [model, setModel] = useState(agent.model || 'deepseek-chat')
+  const [providerId, setProviderId] = useState(agent.provider || '')
+  const [providers, setProviders] = useState<any[]>([])
+  const [providerModels, setProviderModels] = useState<string[]>([])
+  const [fetchingModels, setFetchingModels] = useState(false)
   const [tools, setTools] = useState<string[]>(agent.tools || [])
   const [handoffTargets, setHandoffTargets] = useState<string[]>(agent.handoff?.targets || [])
   const [orchestratorEnabled, setOrchestratorEnabled] = useState(agent.orchestrator?.enabled || false)
@@ -43,10 +47,45 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
         const lines = agent.config_yaml.split('\n')
         for (const line of lines) {
           if (line.startsWith('model:')) setModel(line.split(':')[1].trim().replace(/"/g, ''))
+          if (line.startsWith('provider:')) setProviderId(line.split(':')[1].trim().replace(/"/g, ''))
         }
       } catch {}
     }
   }, [agent.config_yaml])
+
+  // Load providers for the dropdown
+  useEffect(() => {
+    fetch(`${API}/providers`)
+      .then(r => r.json())
+      .then(data => {
+        setProviders(data)
+        // if agent has a provider, load its models
+        const pid = agent.provider || (agent.config_yaml ? '' : '')
+        if (pid) {
+          const prov = data.find((p: any) => p.id === pid)
+          if (prov?.models?.length) setProviderModels(prov.models)
+        }
+      })
+      .catch(() => {})
+  }, [agent.provider])
+
+  const loadProviderModels = async (pid: string) => {
+    if (!pid) { setProviderModels([]); return }
+    const prov = providers.find(p => p.id === pid)
+    if (prov?.models?.length) {
+      setProviderModels(prov.models)
+      return
+    }
+    setFetchingModels(true)
+    try {
+      const res = await fetch(`${API}/providers/${pid}/fetch-models`, { method: 'POST' })
+      const data = await res.json()
+      setProviderModels(data.models || [])
+    } catch (err) {
+      console.error('Failed to fetch provider models:', err)
+    }
+    setFetchingModels(false)
+  }
 
   const toggleTool = (toolId: string) => {
     setTools((prev: string[]) => prev.includes(toolId) ? prev.filter(t => t !== toolId) : [...prev, toolId])
@@ -78,6 +117,7 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
           soul_md: soulMd,
           description,
           model,
+          provider: providerId,
           tools,
           handoff_enabled: handoffTargets.length > 0,
           handoff_targets: handoffTargets,
@@ -182,19 +222,57 @@ export default function AgentEditor({ agent, allAgents, onClose, onSave, onDelet
               <p className="text-xs text-gray-400 mt-1">Define the agent's persona, rules, and behavior.</p>
             </div>
 
-            {/* Model */}
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Model</label>
-              <select
-                value={model}
-                onChange={e => setModel(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
-              >
-                <option value="deepseek-chat">DeepSeek V4 Flash</option>
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                <option value="qwen-local">Qwen 2.5-7B (Local)</option>
-              </select>
+            {/* Provider + Model */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Provider</label>
+                <select
+                  value={providerId}
+                  onChange={e => { setProviderId(e.target.value); loadProviderModels(e.target.value) }}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                >
+                  <option value="">Use default (global .env)</option>
+                  {providers.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5 uppercase tracking-wide">Model</label>
+                <div className="flex gap-2">
+                  {providerId ? (
+                    <select
+                      value={model}
+                      onChange={e => setModel(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-white"
+                    >
+                      {providerModels.length > 0 ? (
+                        providerModels.map(m => <option key={m} value={m}>{m}</option>)
+                      ) : (
+                        <option value={model}>{model}</option>
+                      )}
+                    </select>
+                  ) : (
+                    <input
+                      value={model}
+                      onChange={e => setModel(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      placeholder="model id (e.g. deepseek-chat)"
+                    />
+                  )}
+                  <button
+                    onClick={() => loadProviderModels(providerId)}
+                    disabled={!providerId || fetchingModels}
+                    className="px-3 py-2 rounded-lg text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-colors disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <ArrowClockwise size={14} className={fetchingModels ? 'animate-spin' : ''} />
+                    Fetch
+                  </button>
+                </div>
+                {providerId && providerModels.length === 0 && (
+                  <p className="text-xs text-gray-400 mt-1">Click Fetch to load models from the provider endpoint.</p>
+                )}
+              </div>
             </div>
 
             {/* Tools */}

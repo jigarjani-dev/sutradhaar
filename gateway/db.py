@@ -37,6 +37,18 @@ CREATE TABLE IF NOT EXISTS debug_logs (
     payload_json TEXT NOT NULL,
     timestamp TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS providers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    protocol TEXT NOT NULL DEFAULT 'openai-completions',
+    base_url TEXT NOT NULL,
+    api_key TEXT NOT NULL DEFAULT '',
+    models_json TEXT NOT NULL DEFAULT '[]',
+    auto_fetch INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 

@@ -31,6 +31,10 @@ from gateway.loader import build_system_prompt
 from gateway.a2a import register_agent_a2a_routes, get_a2a_handler, remove_a2a_handler
 from gateway.ws import ws_manager
 from gateway.handoff import route_handoff, run_orchestrator
+from gateway.providers import (
+    seed_presets, list_providers, get_provider, create_provider, update_provider,
+    delete_provider, test_connection, fetch_models,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -42,6 +46,7 @@ llm_engine = LLMEngine()
 async def lifespan(app: FastAPI):
     logger.info("Starting Workshop Agent Gateway...")
     await db_init(settings.data_dir)
+    await seed_presets()
     # re-register A2A routes for existing agents
     agents = await list_agents()
     for agent in agents:
@@ -113,6 +118,8 @@ async def api_create_agent(data: dict):
     orchestrator_rules = data.get("orchestrator_rules", [])
     description = data.get("description", name)
     mcp_servers = data.get("mcp_servers", [])
+    provider = data.get("provider")
+    provider_override = data.get("provider_override")
 
     agent = await create_agent(
         name=name, soul_md=soul_md, tools=tools, model=model,
@@ -120,6 +127,7 @@ async def api_create_agent(data: dict):
         orchestrator_enabled=orchestrator_enabled,
         orchestrator_rules=orchestrator_rules,
         description=description, mcp_servers=mcp_servers,
+        provider=provider, provider_override=provider_override,
     )
 
     # register A2A routes
@@ -146,6 +154,8 @@ async def api_update_agent(name: str, data: dict):
         handoff_enabled=data.get("handoff_enabled"),
         handoff_targets=data.get("handoff_targets"),
         description=data.get("description"),
+        provider=data.get("provider"),
+        provider_override=data.get("provider_override"),
     )
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -196,7 +206,11 @@ async def api_chat(name: str, data: dict):
         if orchestrator_config.get("enabled") and orchestrator_config.get("rules"):
             response = await run_orchestrator(name, user_message)
         else:
-            response = await llm_engine.chat(messages, tools=tools, model=config.get("model"))
+            response = await llm_engine.chat(
+                messages, tools=tools, model=config.get("model"),
+                provider=config.get("provider"),
+                provider_override=config.get("provider_override"),
+            )
 
         # check for handoff directive and process it
         handoff_match = re.search(r'---HANDOFF:\s*([\w-]+)\s*---', response)
@@ -251,7 +265,11 @@ async def api_chat_stream(name: str, data: dict):
         await set_agent_status(name, "thinking")
         await ws_manager.emit_message(name, "user", user_message)
         try:
-            async for chunk in llm_engine.chat_stream(messages, tools=tools, model=config.get("model")):
+            async for chunk in llm_engine.chat_stream(
+                messages, tools=tools, model=config.get("model"),
+                provider=config.get("provider"),
+                provider_override=config.get("provider_override"),
+            ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as e:
@@ -298,6 +316,83 @@ async def api_google_status():
         cursor = await db.execute("SELECT * FROM integrations WHERE id = 'google'")
         row = await cursor.fetchone()
         return dict(row) if row else {"status": "not_configured"}
+
+
+# ── Providers ──────────────────────────────────────────────────
+
+@app.get("/api/providers")
+async def api_list_providers():
+    return await list_providers()
+
+
+@app.get("/api/providers/{pid}")
+async def api_get_provider(pid: str):
+    provider = await get_provider(pid)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return provider
+
+
+@app.post("/api/providers")
+async def api_create_provider(data: dict):
+    pid = data.get("id", "").strip().lower().replace(" ", "-")
+    try:
+        provider = await create_provider(
+            pid=pid,
+            name=data.get("name", pid),
+            base_url=data.get("base_url", ""),
+            api_key=data.get("api_key", ""),
+            protocol=data.get("protocol", "openai-completions"),
+            models=data.get("models"),
+            auto_fetch=data.get("auto_fetch", True),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return provider
+
+
+@app.put("/api/providers/{pid}")
+async def api_update_provider(pid: str, data: dict):
+    provider = await update_provider(
+        pid=pid,
+        name=data.get("name"),
+        base_url=data.get("base_url"),
+        api_key=data.get("api_key"),
+        protocol=data.get("protocol"),
+        models=data.get("models"),
+        auto_fetch=data.get("auto_fetch"),
+    )
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return provider
+
+
+@app.delete("/api/providers/{pid}")
+async def api_delete_provider(pid: str):
+    deleted = await delete_provider(pid)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return {"deleted": pid}
+
+
+@app.post("/api/providers/{pid}/test")
+async def api_test_provider(pid: str):
+    result = await test_connection(pid)
+    if not result["ok"]:
+        raise HTTPException(status_code=502, detail=result["error"])
+    return result
+
+
+@app.post("/api/providers/{pid}/fetch-models")
+async def api_fetch_models(pid: str):
+    from gateway.providers import get_provider_with_key
+    full = await get_provider_with_key(pid)
+    if not full:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    models = await fetch_models(full["base_url"], full.get("api_key", ""), full.get("protocol", "openai-completions"))
+    if models:
+        await update_provider(pid, models=models)
+    return {"models": models}
 
 
 # ── Debug ──────────────────────────────────────────────────────

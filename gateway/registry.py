@@ -29,7 +29,8 @@ async def get_agent(name: str) -> dict | None:
 async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
                         handoff_enabled: bool = False, handoff_targets: list[str] | None = None,
                         orchestrator_enabled: bool = False, orchestrator_rules: list[dict] | None = None,
-                        description: str = "", mcp_servers: list[dict] | None = None) -> dict:
+                        description: str = "", mcp_servers: list[dict] | None = None,
+                        provider: str | None = None, provider_override: dict | None = None) -> dict:
     config = {
         "name": name,
         "model": model,
@@ -45,6 +46,10 @@ async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
         },
         "mcp_servers": mcp_servers or [],
     }
+    if provider:
+        config["provider"] = provider
+    if provider_override:
+        config["provider_override"] = provider_override
 
     config_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
     card = build_agent_card(config, soul_md)
@@ -78,7 +83,8 @@ async def create_agent(name: str, soul_md: str, tools: list[str], model: str,
 
 async def update_agent(name: str, soul_md: str | None = None, tools: list[str] | None = None,
                         model: str | None = None, handoff_enabled: bool | None = None,
-                        handoff_targets: list[str] | None = None, description: str | None = None) -> dict | None:
+                        handoff_targets: list[str] | None = None, description: str | None = None,
+                        provider: str | None = None, provider_override: dict | None = None) -> dict | None:
     existing = await get_agent(name)
     if not existing:
         return None
@@ -96,6 +102,16 @@ async def update_agent(name: str, soul_md: str | None = None, tools: list[str] |
         config["handoff"]["targets"] = handoff_targets
     if description is not None:
         config["description"] = description
+    if provider is not None:
+        if provider:
+            config["provider"] = provider
+        else:
+            config.pop("provider", None)
+    if provider_override is not None:
+        if provider_override and (provider_override.get("base_url") or provider_override.get("api_key") or provider_override.get("model")):
+            config["provider_override"] = provider_override
+        else:
+            config.pop("provider_override", None)
 
     config_yaml = yaml.dump(config, default_flow_style=False, sort_keys=False)
     card = build_agent_card(config, existing["soul_md"])
