@@ -18,6 +18,8 @@ from gateway.skills import (
     get_script_tool_defs,
     execute_script,
     script_tool_name,
+    skill_view_tool_def,
+    view_skill,
     list_skills,
 )
 
@@ -44,6 +46,9 @@ def get_tool_definitions(capability_refs: list[str]) -> list[dict]:
             if name not in seen:
                 seen.add(name)
                 result.append(d)
+
+    # skill_view is always available for progressive disclosure
+    add([skill_view_tool_def()])
 
     for ref in capability_refs or []:
         ref = ref.strip()
@@ -83,7 +88,10 @@ def get_tool_definitions(capability_refs: list[str]) -> list[dict]:
 
 
 async def execute_tool(name: str, args: dict) -> str:
-    """Execute a tool by name (skill script or MCP tool)."""
+    """Execute a tool by name (skill_view, skill script, or MCP tool)."""
+    if name == "skill_view":
+        return await view_skill((args or {}).get("name", ""))
+
     if name.startswith("mcp__"):
         return await mcp_bridge.call(name, args or {})
 

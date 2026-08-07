@@ -35,7 +35,9 @@ def _build_skills_catalog(config: dict) -> str:
         return ""
     return (
         "The following skills provide specialized instructions for specific tasks. "
-        "Use their script tools (skill__<name>__<script>) when the task matches a skill's description.\n"
+        "When a task matches a skill's description, FIRST call the skill_view tool "
+        "with the skill name to load its instructions, then use the skill's script "
+        "tools (skill__<name>__<script>) as directed.\n"
         "<available_skills>\n" + "\n".join(blocks) + "\n</available_skills>"
     )
 

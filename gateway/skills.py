@@ -109,6 +109,51 @@ def resolve_script(skill: dict, script_ref: str) -> str | None:
     return None
 
 
+def skill_view_tool_def() -> dict:
+    """OpenAI function def for the skill_view tool (progressive disclosure).
+
+    The agent calls this to load a skill's SKILL.md body on demand, so it
+    learns how and when to use the skill instead of guessing.
+    """
+    return {
+        "type": "function",
+        "function": {
+            "name": "skill_view",
+            "description": (
+                "Read the instructions for a skill (its SKILL.md body). "
+                "Call this BEFORE using a skill's script tools to learn how to use them, "
+                "what arguments they expect, and when the skill applies. "
+                "Pass the exact skill name from the available skills list."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The skill name to load instructions for.",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    }
+
+
+async def view_skill(skill_name: str) -> str:
+    """Return a skill's SKILL.md body + script list for the agent to read."""
+    skill = get_skill(skill_name)
+    if not skill:
+        return f"Skill '{skill_name}' not found."
+    body = skill.get("body", "")
+    scripts = skill.get("scripts", [])
+    parts = [f"# {skill['name']}", f"## Description\n{skill.get('description', '')}"]
+    if scripts:
+        parts.append("## Scripts\n" + "\n".join(f"- {s}" for s in scripts))
+    if body:
+        parts.append("## Instructions\n" + body)
+    return "\n\n".join(parts)
+
+
 def get_script_tool_defs(skill: dict, max_args: int = 6) -> list[dict]:
     """Build OpenAI function tool defs for a skill's scripts.
 
