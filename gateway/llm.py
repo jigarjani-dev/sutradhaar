@@ -14,6 +14,7 @@ from openai import AsyncOpenAI
 from gateway.config import settings
 from gateway.providers import get_provider_with_key
 from gateway.tools import execute_tool, get_tool_definitions
+from gateway.ws import ws_manager
 
 
 class LLMEngine:
@@ -54,6 +55,7 @@ class LLMEngine:
         model: str | None = None,
         provider: str | None = None,
         provider_override: dict | None = None,
+        agent_name: str | None = None,
     ) -> str:
         """
         Send messages to the LLM with optional tool calling.
@@ -102,7 +104,13 @@ class LLMEngine:
                     args = json.loads(tc.function.arguments)
                 except json.JSONDecodeError:
                     args = {}
+                await ws_manager.emit_tool_call(
+                    agent_name or "unknown", tc.function.name, args, "running"
+                )
                 result = await execute_tool(tc.function.name, args)
+                await ws_manager.emit_tool_call(
+                    agent_name or "unknown", tc.function.name, args, result
+                )
                 full_messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
@@ -118,6 +126,7 @@ class LLMEngine:
         model: str | None = None,
         provider: str | None = None,
         provider_override: dict | None = None,
+        agent_name: str | None = None,
     ):
         """
         Stream response tokens from the LLM.
@@ -183,7 +192,13 @@ class LLMEngine:
                     args = json.loads(tc["function"]["arguments"])
                 except json.JSONDecodeError:
                     args = {}
+                await ws_manager.emit_tool_call(
+                    agent_name or "unknown", tc["function"]["name"], args, "running"
+                )
                 result = await execute_tool(tc["function"]["name"], args)
+                await ws_manager.emit_tool_call(
+                    agent_name or "unknown", tc["function"]["name"], args, result
+                )
                 full_messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],

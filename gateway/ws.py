@@ -54,11 +54,19 @@ class WebSocketManager:
         })
 
     async def emit_tool_call(self, agent_name: str, tool: str, args: dict, result: str):
+        """Broadcast a tool invocation. result == 'running' means started."""
         await self.broadcast("tool_call", {
             "agent": agent_name,
             "tool": tool,
             "args": args,
-            "result": result[:500],
+            "status": "running" if result == "running" else "done",
+            "result": "" if result == "running" else result[:500],
+        })
+
+    async def emit_agent_status(self, agent_name: str, status: str):
+        await self.broadcast("agent_status", {
+            "agent": agent_name,
+            "status": status,
         })
 
     async def emit_handoff(self, from_agent: str, to_agent: str, message: str):

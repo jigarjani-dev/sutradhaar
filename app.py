@@ -91,6 +91,7 @@ async def api_list_agents():
     agents = await list_agents()
     for a in agents:
         a["card_url"] = f"/a2a/{a['name']}/.well-known/agent.json"
+        a["tools"], a["orchestrator"] = _extract_agent_meta(a)
     return agents
 
 
@@ -100,7 +101,20 @@ async def api_get_agent(name: str):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     agent["card_url"] = f"/a2a/{name}/.well-known/agent.json"
+    agent["tools"], agent["orchestrator"] = _extract_agent_meta(agent)
     return agent
+
+
+def _extract_agent_meta(agent: dict) -> tuple[list[str], bool]:
+    """Pull tools + orchestrator flag out of config_yaml for the frontend."""
+    try:
+        import yaml
+        config = yaml.safe_load(agent.get("config_yaml") or "{}") or {}
+        tools = config.get("tools", [])
+        orch = bool((config.get("orchestrator") or {}).get("enabled"))
+        return tools, orch
+    except Exception:
+        return [], False
 
 
 @app.post("/api/agents")
@@ -195,6 +209,7 @@ async def api_chat(name: str, data: dict):
         raise HTTPException(status_code=400, detail="Message is required")
 
     await set_agent_status(name, "thinking")
+    await ws_manager.emit_agent_status(name, "thinking")
     await ws_manager.emit_message(name, "user", user_message)
 
     try:
@@ -217,6 +232,7 @@ async def api_chat(name: str, data: dict):
                 messages, tools=tools, model=config.get("model"),
                 provider=config.get("provider"),
                 provider_override=config.get("provider_override"),
+                agent_name=name,
             )
 
         # check for handoff directive and process it
@@ -242,6 +258,7 @@ async def api_chat(name: str, data: dict):
         )
 
         await set_agent_status(name, "idle")
+        await ws_manager.emit_agent_status(name, "idle")
         await ws_manager.emit_message(name, "assistant", full_response)
 
         return {"agent": name, "response": full_response}
@@ -249,6 +266,7 @@ async def api_chat(name: str, data: dict):
     except Exception as e:
         logger.exception(f"Chat error for agent {name}")
         await set_agent_status(name, "error")
+        await ws_manager.emit_agent_status(name, "error")
         await ws_manager.emit_debug(name, "error", {"error": str(e)})
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -279,12 +297,14 @@ async def api_chat_stream(name: str, data: dict):
 
     async def generate():
         await set_agent_status(name, "thinking")
+        await ws_manager.emit_agent_status(name, "thinking")
         await ws_manager.emit_message(name, "user", user_message)
         try:
             async for chunk in llm_engine.chat_stream(
                 messages, tools=tools, model=config.get("model"),
                 provider=config.get("provider"),
                 provider_override=config.get("provider_override"),
+                agent_name=name,
             ):
                 yield f"data: {json.dumps({'chunk': chunk})}\n\n"
             yield "data: [DONE]\n\n"
@@ -292,6 +312,7 @@ async def api_chat_stream(name: str, data: dict):
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
             await set_agent_status(name, "idle")
+            await ws_manager.emit_agent_status(name, "idle")
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

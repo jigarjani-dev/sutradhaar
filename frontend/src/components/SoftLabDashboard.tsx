@@ -6,6 +6,7 @@ import {
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
+import PipelineCards from './PipelineCards'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -87,41 +88,6 @@ function AgentCard({ agent, isSelected, onClick, onEdit }: { agent: any; isSelec
   )
 }
 
-function PipelineSVG({ agents }: { agents: any[] }) {
-  const nodes = agents.map((a, i) => ({
-    x: 100 + (i * 120),
-    y: 80 + (i % 2 === 0 ? 0 : 40),
-    label: a.name,
-    color: colors.agents[i % colors.agents.length],
-  }))
-
-  return (
-    <svg viewBox="0 0 620 160" className="w-full h-full">
-      <defs>
-        {nodes.slice(0, -1).map((_, i) => (
-          <linearGradient key={`grad-${i}`} id={`edge-grad-${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor={nodes[i].color} stopOpacity="0.3" />
-            <stop offset="100%" stopColor={nodes[i + 1].color} stopOpacity="0.3" />
-          </linearGradient>
-        ))}
-      </defs>
-      {nodes.slice(0, -1).map((_, i) => (
-        <g key={`edge-${i}`}>
-          <line x1={nodes[i].x} y1={nodes[i].y} x2={nodes[i + 1].x} y2={nodes[i + 1].y} stroke={`url(#edge-grad-${i})`} strokeWidth="3" strokeLinecap="round" />
-          <motion.circle r="4" fill={nodes[i].color} initial={{ cx: nodes[i].x, cy: nodes[i].y }} animate={{ cx: nodes[i + 1].x, cy: nodes[i + 1].y }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} style={{ opacity: 0.6 }} />
-        </g>
-      ))}
-      {nodes.map((node, i) => (
-        <g key={`node-${i}`}>
-          <circle cx={node.x} cy={node.y} r="20" fill={colors.surface} stroke={node.color} strokeWidth="3" />
-          <circle cx={node.x} cy={node.y} r="8" fill={node.color} />
-          <text x={node.x} y={node.y + 35} textAnchor="middle" className="text-xs font-medium" fill={colors.textSecondary} style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>{node.label}</text>
-        </g>
-      ))}
-    </svg>
-  )
-}
-
 function ChatBubble({ message }: { message: any }) {
   const isUser = message.role === 'user'
   return (
@@ -150,6 +116,7 @@ export default function SoftLabDashboard() {
   const [chatInput, setChatInput] = useState('')
   const [sending, setSending] = useState(false)
   const [connected, setConnected] = useState(false)
+  const [agentStates, setAgentStates] = useState<Record<string, any>>({})
 
   useEffect(() => {
     // Fetch agents
@@ -168,6 +135,54 @@ export default function SoftLabDashboard() {
         setAgents(prev => [...prev, { name: msg.data.name, status: 'idle', description: 'New agent' }])
       } else if (msg.type === 'agent_deleted') {
         setAgents(prev => prev.filter(a => a.name !== msg.data.name))
+        setAgentStates(prev => {
+          const next = { ...prev }
+          delete next[msg.data.name]
+          return next
+        })
+      } else if (msg.type === 'agent_status') {
+        setAgentStates(prev => ({
+          ...prev,
+          [msg.data.agent]: {
+            ...(prev[msg.data.agent] || { tools: [] }),
+            status: msg.data.status,
+            name: msg.data.agent,
+            lastActivity: msg.data.status === 'thinking' ? 'thinking...' : msg.data.status === 'error' ? 'error' : 'waiting',
+          },
+        }))
+      } else if (msg.type === 'tool_call') {
+        const ts = Date.now()
+        setAgentStates(prev => {
+          const cur = prev[msg.data.agent] || { status: 'idle', tools: [] }
+          const tc = {
+            tool: msg.data.tool,
+            status: msg.data.status,
+            args: msg.data.args,
+            result: msg.data.result,
+            ts,
+          }
+          return {
+            ...prev,
+            [msg.data.agent]: {
+              ...cur,
+              name: msg.data.agent,
+              tools: [...(cur.tools || []), tc],
+              lastActivity: msg.data.status === 'running'
+                ? `calling ${msg.data.tool}...`
+                : `called ${msg.data.tool} · just now`,
+            },
+          }
+        })
+      } else if (msg.type === 'handoff') {
+        setAgentStates(prev => ({
+          ...prev,
+          [msg.data.from]: {
+            ...(prev[msg.data.from] || { tools: [] }),
+            status: 'idle',
+            name: msg.data.from,
+            lastActivity: `handed off to ${msg.data.to}`,
+          },
+        }))
       }
     }
     return () => ws.close()
@@ -352,9 +367,17 @@ export default function SoftLabDashboard() {
 
         {/* Center: Pipeline + Chat */}
         <main className="flex flex-col gap-4 overflow-hidden">
-          <div className="rounded-2xl border-2 p-6 flex-1" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-            <h2 className="text-sm font-semibold mb-4" style={{ color: colors.text }}>Pipeline Topology</h2>
-            {agents.length > 0 ? <PipelineSVG agents={agents} /> : <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>No agents deployed</div>}
+          <div className="rounded-2xl border-2 p-6 flex-1 overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Pipeline Topology</h2>
+              <span className="text-xs" style={{ color: colors.textMuted }}>click a card to chat</span>
+            </div>
+            <PipelineCards
+              agents={agents}
+              states={agentStates}
+              selected={selectedAgent}
+              onSelect={setSelectedAgent}
+            />
           </div>
           <div className="rounded-2xl border-2 flex flex-col overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: colors.border }}>
