@@ -212,6 +212,7 @@ export default function SoftLabDashboard() {
   const [connected, setConnected] = useState(false)
   const [agentStates, setAgentStates] = useState<Record<string, any>>({})
   const selectedRef = useRef<string | null>(null)
+  const chatScrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     selectedRef.current = selectedAgent
     if (selectedAgent) {
@@ -376,6 +377,13 @@ export default function SoftLabDashboard() {
       .catch(() => {})
   }, [selectedAgent])
 
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+    }
+  }, [chatMessages, sending])
+
   const handleSend = async () => {
     const text = chatInput.trim()
     if (!text || !selectedAgent || sending) return
@@ -445,7 +453,7 @@ export default function SoftLabDashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: colors.bg }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: colors.bg }}>
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between border-b" style={{ backgroundColor: colors.surface, borderColor: colors.border, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-3">
@@ -496,7 +504,7 @@ export default function SoftLabDashboard() {
       ) : view === 'skills' ? (
         <SkillsPanel onClose={() => setView('dashboard')} embedded />
       ) : (
-      <div className="flex-1 grid grid-cols-[280px_1fr_320px] gap-4 p-4 overflow-hidden">
+      <div className="flex-1 grid grid-cols-[280px_1fr_320px] gap-4 p-4 overflow-hidden min-h-0">
         {/* Agent List */}
         <aside className="rounded-2xl border-2 p-4 overflow-y-auto" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
           <div className="flex items-center justify-between mb-4">
@@ -517,7 +525,7 @@ export default function SoftLabDashboard() {
         </aside>
 
         {/* Center: Pipeline + Chat */}
-        <main className="flex flex-col gap-4 overflow-hidden">
+        <main className="flex flex-col gap-4 overflow-hidden min-h-0">
           <div className="rounded-2xl border-2 p-6 flex-1 overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Pipeline Topology</h2>
@@ -530,7 +538,7 @@ export default function SoftLabDashboard() {
               onSelect={setSelectedAgent}
             />
           </div>
-          <div className="rounded-2xl border-2 flex flex-col overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <div className="rounded-2xl border-2 flex flex-col overflow-hidden flex-1 min-h-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: colors.border }}>
               <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Agent Chat</h2>
               <div className="flex items-center gap-2">
@@ -544,7 +552,7 @@ export default function SoftLabDashboard() {
                 </span>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-5 py-4">
               {chatMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>
                   {selectedAgent ? 'No messages yet. Say something to start the conversation.' : 'Select an agent to chat'}
