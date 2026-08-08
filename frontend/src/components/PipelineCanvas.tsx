@@ -118,15 +118,6 @@ function AgentNode({ data }: { data: AgentNodeData }) {
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
-        {/* flip control */}
-        <button
-          onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}
-          title={flipped ? 'Flip back' : 'Flip to A2A card'}
-          className="absolute bottom-1 left-1 z-20 w-6 h-6 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-100 transition-colors"
-          style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: colors.textMuted, border: '1px solid #e5e7eb' }}
-        >
-          <ArrowClockwise size={12} weight="bold" />
-        </button>
         {/* FRONT face */}
         <div
           className="absolute inset-0 rounded-2xl border-2 flex flex-col overflow-hidden shadow-sm [backface-visibility:hidden]"
@@ -172,6 +163,14 @@ function AgentNode({ data }: { data: AgentNodeData }) {
               </>
             )}
             <div className="mt-auto pt-1.5 border-t flex items-center gap-1" style={{ borderColor: `${c}25`, color: colors.textMuted }}>
+              <button
+                onClick={e => { e.stopPropagation(); setFlipped(true) }}
+                title="Flip to A2A card"
+                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-medium hover:bg-gray-100 transition-colors shrink-0"
+                style={{ color: c, backgroundColor: `${c}10` }}
+              >
+                <ArrowClockwise size={8} weight="bold" /> flip
+              </button>
               {isActive ? <Wrench size={9} weight="bold" style={{ color: c }} /> : <Robot size={9} weight="fill" />}
               <span className="text-[9px] truncate">{st.lastActivity || (isActive ? 'working...' : 'waiting')}</span>
             </div>
@@ -236,10 +235,10 @@ function AgentNode({ data }: { data: AgentNodeData }) {
           <div className="px-3 py-1.5 border-t flex items-center justify-between shrink-0" style={{ borderColor: `${c}20` }}>
             <button
               onClick={e => { e.stopPropagation(); setFlipped(false) }}
-              className="text-[8px] flex items-center gap-1"
-              style={{ color: colors.textMuted }}
+              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[8px] font-medium hover:bg-gray-100 transition-colors"
+              style={{ color: c, backgroundColor: `${c}10` }}
             >
-              <ArrowClockwise size={8} /> flip back
+              <ArrowClockwise size={8} weight="bold" /> flip back
             </button>
             <button
               onClick={e => { e.stopPropagation(); onSelect(agent.name) }}
