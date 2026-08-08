@@ -12,7 +12,7 @@ async def list_agents() -> list[dict]:
     async with aiosqlite.connect(get_db_path()) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT name, config_yaml, soul_md, card_json, status, created_at, updated_at FROM agents ORDER BY created_at"
+            "SELECT name, config_yaml, soul_md, card_json, status, error, created_at, updated_at FROM agents ORDER BY created_at"
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
@@ -161,7 +161,16 @@ async def delete_agent(name: str) -> bool:
     return deleted
 
 
-async def set_agent_status(name: str, status: str):
+async def set_agent_status(name: str, status: str, error: str | None = None):
     async with aiosqlite.connect(get_db_path()) as db:
-        await db.execute("UPDATE agents SET status = ? WHERE name = ?", (status, name))
+        if error is not None:
+            await db.execute(
+                "UPDATE agents SET status = ?, error = ? WHERE name = ?",
+                (status, error, name),
+            )
+        else:
+            await db.execute(
+                "UPDATE agents SET status = ?, error = NULL WHERE name = ?",
+                (status, name),
+            )
         await db.commit()

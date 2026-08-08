@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS agents (
     soul_md TEXT NOT NULL,
     card_json TEXT,
     status TEXT DEFAULT 'idle',
+    error TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -66,6 +67,11 @@ async def init(data_dir: str):
     DB_PATH = str(Path(data_dir) / "gateway.db")
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript(SCHEMA)
+        # migration: add error column if missing (older DBs)
+        cols = await db.execute("PRAGMA table_info(agents)")
+        col_names = [row[1] for row in await cols.fetchall()]
+        if "error" not in col_names:
+            await db.execute("ALTER TABLE agents ADD COLUMN error TEXT")
         await db.commit()
 
 

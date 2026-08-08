@@ -226,7 +226,22 @@ export default function SoftLabDashboard() {
     // Fetch agents
     fetch(`${API}/agents`)
       .then(r => r.json())
-      .then(data => setAgents(data))
+      .then(data => {
+        setAgents(data)
+        const states: Record<string, any> = {}
+        for (const a of data) {
+          if (a.status === 'error' || a.error) {
+            states[a.name] = {
+              name: a.name,
+              status: a.status || 'error',
+              error: a.error || 'unknown error',
+              tools: [],
+              lastActivity: 'error',
+            }
+          }
+        }
+        if (Object.keys(states).length) setAgentStates(states)
+      })
       .catch(() => {})
 
     // WebSocket
