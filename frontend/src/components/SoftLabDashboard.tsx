@@ -446,6 +446,56 @@ export default function SoftLabDashboard() {
     }
   }
 
+  const refreshAgents = async () => {
+    try {
+      const res = await fetch(`${API}/agents`)
+      const data = await res.json()
+      setAgents(data)
+      return data
+    } catch (err) {
+      console.error('Failed to refresh agents:', err)
+      return null
+    }
+  }
+
+  const toggleAgentSkill = async (agentName: string, skillName: string) => {
+    const agent = agents.find(a => a.name === agentName)
+    if (!agent) return
+    const current = agent.skills || []
+    const skills = current.includes(skillName)
+      ? current.filter((s: string) => s !== skillName)
+      : [...current, skillName]
+    try {
+      await fetch(`${API}/agents/${agentName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skills }),
+      })
+      await refreshAgents()
+    } catch (err) {
+      console.error('Failed to toggle skill:', err)
+    }
+  }
+
+  const toggleAgentMcp = async (agentName: string, serverName: string) => {
+    const agent = agents.find(a => a.name === agentName)
+    if (!agent) return
+    const current = (agent.mcp_servers || []).map((m: any) => typeof m === 'string' ? m : m.name)
+    const mcp_servers = current.includes(serverName)
+      ? current.filter((s: string) => s !== serverName)
+      : [...current, serverName]
+    try {
+      await fetch(`${API}/agents/${agentName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mcp_servers }),
+      })
+      await refreshAgents()
+    } catch (err) {
+      console.error('Failed to toggle MCP server:', err)
+    }
+  }
+
   const handleEditorSave = async () => {
     // Refresh agents list
     try {
@@ -476,7 +526,7 @@ export default function SoftLabDashboard() {
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: colors.primaryLight }}>
             <Flask size={20} weight="duotone" style={{ color: colors.primary }} />
           </div>
-          <h1 className="text-xl font-bold" style={{ color: colors.text }}>Agent Gateway</h1>
+          <h1 className="text-xl font-bold" style={{ color: colors.text }}>Sutra Sarathi</h1>
           <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>THOUGHT LAB</span>
         </div>
           <div className="flex items-center gap-4">
@@ -554,6 +604,8 @@ export default function SoftLabDashboard() {
               states={agentStates}
               selected={selectedAgent}
               onSelect={setSelectedAgent}
+              onToggleSkill={toggleAgentSkill}
+              onToggleMcp={toggleAgentMcp}
             />
           </div>
           <div className="rounded-2xl border-2 flex flex-col overflow-hidden flex-1 min-h-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>

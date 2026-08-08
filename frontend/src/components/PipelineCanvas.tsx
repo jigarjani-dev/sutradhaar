@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { ReactFlow, MiniMap, Background, Controls, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
-  Cpu, X, XCircle, Wrench, Robot, ArrowClockwise, Cards, Lightning, LinkSimple,
+  Cpu, X, XCircle, Wrench, Robot, ArrowClockwise, Cards, Lightning, LinkSimple, Plus, Check, PlugsConnected,
   Envelope, Wallet, Scan, PaperPlaneTilt, TreeStructure, SealCheck,
 } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
@@ -84,10 +84,12 @@ interface AgentNodeData {
   state: any
   selected: boolean
   onSelect: (name: string) => void
+  onToggleSkill: (agentName: string, skillName: string) => void
+  onToggleMcp: (agentName: string, serverName: string) => void
 }
 
 function AgentNode({ data }: { data: AgentNodeData }) {
-  const { agent, state, selected, onSelect } = data
+  const { agent, state, selected, onSelect, onToggleSkill, onToggleMcp } = data
   const color = agentColor(agent.name)
   const st = state || { name: agent.name, status: agent.status || 'idle', tools: [] }
   const isActive = st.status === 'thinking' || st.status === 'working'
@@ -99,6 +101,9 @@ function AgentNode({ data }: { data: AgentNodeData }) {
   const [showCardJson, setShowCardJson] = useState(false)
   const [showError, setShowError] = useState(false)
   const [a2aCard, setA2aCard] = useState<any>(null)
+  const [picker, setPicker] = useState<'skills' | 'mcp' | null>(null)
+  const [availableSkills, setAvailableSkills] = useState<any[]>([])
+  const [availableMcp, setAvailableMcp] = useState<string[]>([])
 
   useEffect(() => {
     fetch(`/a2a/${agent.name}/.well-known/agent.json`)
@@ -107,20 +112,34 @@ function AgentNode({ data }: { data: AgentNodeData }) {
       .catch(() => {})
   }, [agent.name])
 
+  useEffect(() => {
+    fetch('/api/skills')
+      .then(r => r.json())
+      .then(d => setAvailableSkills(d || []))
+      .catch(() => {})
+    fetch('/api/mcp/servers')
+      .then(r => r.json())
+      .then(d => setAvailableMcp((d.servers || []).filter((s: string) => s !== '__proto__')))
+      .catch(() => {})
+  }, [])
+
+  const enabledSkills = new Set(agent.skills || [])
+  const enabledMcp = new Set((agent.mcp_servers || []).map((m: any) => typeof m === 'string' ? m : m.name))
+
   return (
-    <div className="relative w-[160px] h-[230px] [perspective:1000px]">
+    <div className="relative w-[160px] [perspective:1000px]">
       <Handle type="target" position={Position.Left} className="!w-2.5 !h-2.5 !bg-gray-300 !border-2 !border-white !z-50" />
       <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-gray-300 !border-2 !border-white !z-50" />
       <motion.div
         whileTap={{ scale: 0.98 }}
         onClick={() => onSelect(agent.name)}
-        className="relative w-full h-full cursor-pointer [transform-style:preserve-3d]"
+        className="relative w-full grid [transform-style:preserve-3d]"
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
         {/* FRONT face */}
         <div
-          className="absolute inset-0 rounded-2xl border-2 flex flex-col overflow-hidden shadow-sm [backface-visibility:hidden]"
+          className="rounded-2xl border-2 flex flex-col overflow-hidden shadow-sm [backface-visibility:hidden] min-h-[230px]"
           style={{ borderColor: selected ? color : isActive ? `${color}70` : `${c}35`, backgroundColor: colors.bg }}
         >
           <div className="px-3 py-2 flex items-center justify-between gap-2 shrink-0" style={{ background: `linear-gradient(135deg, ${c}2E 0%, ${c}1A 100%)` }}>
@@ -139,29 +158,35 @@ function AgentNode({ data }: { data: AgentNodeData }) {
               <div className="text-sm font-bold mb-0.5 truncate" style={{ color: colors.text }}>{agent.name}</div>
               <div className="text-[10px] leading-snug line-clamp-2" style={{ color: colors.textSecondary }}>{agent.description || 'Agent'}</div>
             </div>
-            <div className="text-[8px] font-semibold uppercase tracking-wide mb-1" style={{ color: `${c}B0` }}>Skills</div>
-            <div className="flex flex-wrap gap-1 mb-1 min-h-[16px]">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: `${c}B0` }}>Skills</span>
+              <button onClick={e => { e.stopPropagation(); setPicker('skills') }} title="Add skill" className="w-3.5 h-3.5 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors" style={{ color: c, backgroundColor: `${c}15` }}>
+                <Plus size={8} weight="bold" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1 mb-1 min-h-[14px]">
               {(agent.skills && agent.skills.length > 0 ? agent.skills : agent.tools || []).map((t: string) => (
                 <span key={t} className="px-1.5 py-0.5 rounded-full text-[8px] font-medium border truncate max-w-[70px]" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
                   {t}
                 </span>
               ))}
             </div>
-            {agent.mcp_servers && agent.mcp_servers.length > 0 && (
-              <>
-                <div className="text-[8px] font-semibold uppercase tracking-wide mb-1" style={{ color: `${c}B0` }}>MCP</div>
-                <div className="flex flex-wrap gap-1 mb-1">
-                  {agent.mcp_servers.map((m: any) => {
-                    const n = typeof m === 'string' ? m : m.name
-                    return (
-                      <span key={n} className="px-1.5 py-0.5 rounded-full text-[8px] font-medium border flex items-center gap-1" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
-                        <Lightning size={7} weight="fill" style={{ color: c }} /> {n}
-                      </span>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[8px] font-semibold uppercase tracking-wide" style={{ color: `${c}B0` }}>MCP</span>
+              <button onClick={e => { e.stopPropagation(); setPicker('mcp') }} title="Add MCP server" className="w-3.5 h-3.5 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors" style={{ color: c, backgroundColor: `${c}15` }}>
+                <Plus size={8} weight="bold" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1 mb-1 min-h-[14px]">
+              {(agent.mcp_servers || []).map((m: any) => {
+                const n = typeof m === 'string' ? m : m.name
+                return (
+                  <span key={n} className="px-1.5 py-0.5 rounded-full text-[8px] font-medium border flex items-center gap-1" style={{ borderColor: `${c}35`, color: colors.textSecondary, backgroundColor: `${c}12` }}>
+                    <Lightning size={7} weight="fill" style={{ color: c }} /> {n}
+                  </span>
+                )
+              })}
+            </div>
             <div className="mt-auto pt-1.5 border-t flex items-center gap-1" style={{ borderColor: `${c}25`, color: colors.textMuted }}>
               <button
                 onClick={e => { e.stopPropagation(); setFlipped(true) }}
@@ -310,6 +335,79 @@ function AgentNode({ data }: { data: AgentNodeData }) {
         </div>,
         document.body
       )}
+
+      {/* skills / MCP picker popup (portal) */}
+      {picker && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(3px)' }}
+          onClick={() => setPicker(null)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl flex flex-col shadow-2xl w-[min(92vw,420px)] max-h-[80vh]"
+          >
+            <div className="flex items-center justify-between px-4 py-2.5 border-b shrink-0" style={{ borderColor: colors.border }}>
+              <h3 className="text-sm font-bold" style={{ color: colors.text }}>
+                {picker === 'skills' ? 'Skills' : 'MCP Servers'} · {agent.name}
+              </h3>
+              <button onClick={() => setPicker(null)} className="p-1 hover:bg-gray-100 rounded-full transition-colors" aria-label="Close">
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-3 overflow-y-auto flex-1 space-y-1">
+              {(picker === 'skills' ? availableSkills : availableMcp).length === 0 ? (
+                <p className="text-xs text-gray-400 px-1 py-2">
+                  {picker === 'skills' ? 'No skills installed. Add SKILL.md folders under data/skills/.' : 'No MCP servers configured in data/mcp.json.'}
+                </p>
+              ) : picker === 'skills' ? (
+                availableSkills.map(s => {
+                  const active = enabledSkills.has(s.name)
+                  return (
+                    <button
+                      key={s.name}
+                      onClick={() => onToggleSkill(agent.name, s.name)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 text-left transition-all ${
+                        active ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${active ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-transparent'}`}>
+                        <Check size={10} weight="bold" />
+                      </span>
+                      <span className="truncate">{s.name}</span>
+                      <span className="ml-auto text-[9px] text-gray-400 shrink-0">{s.scripts?.length || 0} scripts</span>
+                    </button>
+                  )
+                })
+              ) : (
+                availableMcp.map(name => {
+                  const active = enabledMcp.has(name)
+                  return (
+                    <button
+                      key={name}
+                      onClick={() => onToggleMcp(agent.name, name)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border-2 text-left transition-all ${
+                        active ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded flex items-center justify-center shrink-0 ${active ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-transparent'}`}>
+                        <Check size={10} weight="bold" />
+                      </span>
+                      <PlugsConnected size={13} style={{ color: active ? '#6366f1' : '#9ca3af' }} />
+                      <span className="truncate">{name}</span>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -321,20 +419,24 @@ function PipelineCanvasInner({
   states,
   selected,
   onSelect,
+  onToggleSkill,
+  onToggleMcp,
 }: {
   agents: any[]
   states: Record<string, any>
   selected: string | null
   onSelect: (name: string) => void
+  onToggleSkill?: (agentName: string, skillName: string) => void
+  onToggleMcp?: (agentName: string, serverName: string) => void
 }) {
   const initialNodes = useMemo(() =>
     agents.map((a, i) => ({
       id: a.name,
       type: 'agent',
       position: { x: i * 280, y: 40 + (i % 2) * 60 },
-      data: { agent: a, state: states[a.name], selected: selected === a.name, onSelect },
+      data: { agent: a, state: states[a.name], selected: selected === a.name, onSelect, onToggleSkill, onToggleMcp },
     })),
-  [agents, states, selected, onSelect])
+  [agents, states, selected, onSelect, onToggleSkill, onToggleMcp])
 
   const initialEdges = useMemo(() => {
     const edges: any[] = []
