@@ -69,10 +69,11 @@ class WebSocketManager:
             "result": "" if result == "running" else result[:500],
         })
 
-    async def emit_agent_status(self, agent_name: str, status: str):
+    async def emit_agent_status(self, agent_name: str, status: str, error: str = ""):
         await self.broadcast("agent_status", {
             "agent": agent_name,
             "status": status,
+            "error": error,
         })
 
     async def emit_handoff(self, from_agent: str, to_agent: str, message: str):

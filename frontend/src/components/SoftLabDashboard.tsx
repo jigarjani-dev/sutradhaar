@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import { 
-  Heart, Plus, X, Cpu, TerminalWindow, 
-  Robot, User, PencilSimple, CheckCircle, Lightbulb
+  Plus, X, Cpu, TerminalWindow, 
+  Robot, User, PencilSimple, CheckCircle, Lightbulb, Flask
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
@@ -251,6 +251,7 @@ export default function SoftLabDashboard() {
             ...(prev[msg.data.agent] || { tools: [] }),
             status: msg.data.status,
             name: msg.data.agent,
+            error: msg.data.status === 'error' ? (msg.data.error || 'unknown error') : undefined,
             lastActivity: msg.data.status === 'thinking' ? 'thinking...' : msg.data.status === 'error' ? 'error' : 'waiting',
           },
         }))
@@ -457,9 +458,11 @@ export default function SoftLabDashboard() {
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between border-b" style={{ backgroundColor: colors.surface, borderColor: colors.border, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-3">
-          <Heart size={24} weight="fill" style={{ color: colors.rose }} />
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: colors.primaryLight }}>
+            <Flask size={20} weight="duotone" style={{ color: colors.primary }} />
+          </div>
           <h1 className="text-xl font-bold" style={{ color: colors.text }}>Agent Gateway</h1>
-          <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>SOFT LAB</span>
+          <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>THOUGHT LAB</span>
         </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

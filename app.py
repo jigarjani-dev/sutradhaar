@@ -301,7 +301,7 @@ async def api_chat(name: str, data: dict):
     except Exception as e:
         logger.exception(f"Chat error for agent {name}")
         await set_agent_status(name, "error")
-        await ws_manager.emit_agent_status(name, "error")
+        await ws_manager.emit_agent_status(name, "error", error=str(e))
         await ws_manager.emit_debug(name, "error", {"error": str(e)})
         raise HTTPException(status_code=500, detail=str(e))
 

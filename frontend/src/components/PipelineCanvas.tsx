@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ReactFlow, MiniMap, Background, Controls, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
-  Cpu, XCircle, Wrench, Robot, ArrowClockwise, Cards, Lightning, LinkSimple,
+  Cpu, X, XCircle, Wrench, Robot, ArrowClockwise, Cards, Lightning, LinkSimple,
   Envelope, Wallet, Scan, PaperPlaneTilt, TreeStructure, SealCheck,
 } from '@phosphor-icons/react'
 import { motion } from 'motion/react'
@@ -34,7 +35,7 @@ const agentIcon = (agent: any, size = 20) => {
   return <Cpu {...props} />
 }
 
-function NodeStatusPill({ status, color, greyscale }: { status: string; color: string; greyscale?: boolean }) {
+function NodeStatusPill({ status, color, greyscale, error, onErrorClick }: { status: string; color: string; greyscale?: boolean; error?: string; onErrorClick?: () => void }) {
   if (status === 'thinking' || status === 'working') {
     return (
       <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full shrink-0" style={{ backgroundColor: `${color}12`, color }}>
@@ -53,10 +54,15 @@ function NodeStatusPill({ status, color, greyscale }: { status: string; color: s
   }
   if (status === 'error') {
     return (
-      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full" style={{ backgroundColor: '#fef2f2', color: colors.rose }}>
+      <button
+        onClick={e => { e.stopPropagation(); onErrorClick && onErrorClick() }}
+        title={error || 'Agent error'}
+        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full cursor-pointer hover:bg-rose-100 transition-colors"
+        style={{ backgroundColor: '#fef2f2', color: colors.rose }}
+      >
         <XCircle size={10} weight="bold" />
         <span className="text-[8px] font-semibold uppercase tracking-wide">error</span>
-      </div>
+      </button>
     )
   }
   const idleColor = greyscale ? '#9ca3af' : colors.emerald
@@ -90,6 +96,8 @@ function AgentNode({ data }: { data: AgentNodeData }) {
   const isColored = selected || isActive || isError || hasActivity
   const c = isColored ? color : '#9ca3af'
   const [flipped, setFlipped] = useState(false)
+  const [showCardJson, setShowCardJson] = useState(false)
+  const [showError, setShowError] = useState(false)
   const [a2aCard, setA2aCard] = useState<any>(null)
 
   useEffect(() => {
@@ -105,11 +113,20 @@ function AgentNode({ data }: { data: AgentNodeData }) {
       <Handle type="source" position={Position.Right} className="!w-2.5 !h-2.5 !bg-gray-300 !border-2 !border-white !z-50" />
       <motion.div
         whileTap={{ scale: 0.98 }}
-        onClick={() => setFlipped(f => !f)}
+        onClick={() => onSelect(agent.name)}
         className="relative w-full h-full cursor-pointer [transform-style:preserve-3d]"
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
       >
+        {/* flip control */}
+        <button
+          onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}
+          title={flipped ? 'Flip back' : 'Flip to A2A card'}
+          className="absolute bottom-1 left-1 z-20 w-6 h-6 rounded-full flex items-center justify-center shadow-sm hover:bg-gray-100 transition-colors"
+          style={{ backgroundColor: 'rgba(255,255,255,0.9)', color: colors.textMuted, border: '1px solid #e5e7eb' }}
+        >
+          <ArrowClockwise size={12} weight="bold" />
+        </button>
         {/* FRONT face */}
         <div
           className="absolute inset-0 rounded-2xl border-2 flex flex-col overflow-hidden shadow-sm [backface-visibility:hidden]"
@@ -123,7 +140,7 @@ function AgentNode({ data }: { data: AgentNodeData }) {
               <span className="text-[8px] font-mono px-1.5 py-0.5 rounded-md border flex items-center gap-1" style={{ borderColor: `${c}40`, color: c, backgroundColor: `${c}08` }}>
                 <Lightning size={8} weight="fill" /> A2A
               </span>
-              <NodeStatusPill status={isError ? 'error' : st.status} color={c} greyscale={!isColored} />
+              <NodeStatusPill status={isError ? 'error' : st.status} color={c} greyscale={!isColored} error={st.error} onErrorClick={() => setShowError(true)} />
             </div>
           </div>
           <div className="flex-1 flex flex-col px-3 py-2" style={{ background: `linear-gradient(180deg, ${c}10 0%, ${c}05 100%)` }}>
@@ -208,21 +225,22 @@ function AgentNode({ data }: { data: AgentNodeData }) {
               <div className="text-[8px] font-semibold uppercase tracking-wide mb-1" style={{ color: colors.textMuted }}>Version</div>
               <div className="text-[9px]" style={{ color: colors.textSecondary }}>{a2aCard?.version || '1.0.0'}</div>
             </div>
-            <a
-              href={`/a2a/${agent.name}/.well-known/agent.json`}
-              target="_blank"
-              rel="noreferrer"
-              onClick={e => e.stopPropagation()}
+            <button
+              onClick={e => { e.stopPropagation(); setShowCardJson(true) }}
               className="flex items-center gap-1.5 text-[9px] font-medium w-fit px-1.5 py-1 rounded-lg"
               style={{ backgroundColor: `${c}12`, color: c }}
             >
               <LinkSimple size={9} weight="bold" /> View A2A card JSON
-            </a>
+            </button>
           </div>
           <div className="px-3 py-1.5 border-t flex items-center justify-between shrink-0" style={{ borderColor: `${c}20` }}>
-            <span className="text-[8px] flex items-center gap-1" style={{ color: colors.textMuted }}>
+            <button
+              onClick={e => { e.stopPropagation(); setFlipped(false) }}
+              className="text-[8px] flex items-center gap-1"
+              style={{ color: colors.textMuted }}
+            >
               <ArrowClockwise size={8} /> flip back
-            </span>
+            </button>
             <button
               onClick={e => { e.stopPropagation(); onSelect(agent.name) }}
               className="text-[9px] font-medium px-2 py-1 rounded-lg text-white"
@@ -233,6 +251,66 @@ function AgentNode({ data }: { data: AgentNodeData }) {
           </div>
         </div>
       </motion.div>
+
+      {/* A2A card JSON modal (portal) */}
+      {showCardJson && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setShowCardJson(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl flex flex-col shadow-2xl w-[min(92vw,680px)] max-h-[85vh]"
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0" style={{ borderColor: colors.border }}>
+              <h3 className="text-sm font-bold" style={{ color: colors.text }}>A2A Card · {agent.name}</h3>
+              <button onClick={() => setShowCardJson(false)} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors" aria-label="Close">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <pre className="p-4 text-[12px] leading-relaxed whitespace-pre-wrap break-words overflow-y-auto flex-1" style={{ color: colors.textSecondary }}>
+              {JSON.stringify(a2aCard || {}, null, 2)}
+            </pre>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* error modal (portal) */}
+      {showError && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setShowError(false)}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-2xl flex flex-col shadow-2xl w-[min(92vw,520px)] max-h-[85vh]"
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b shrink-0" style={{ borderColor: colors.border }}>
+              <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.rose }}>
+                <XCircle size={16} weight="bold" /> Agent Error · {agent.name}
+              </h3>
+              <button onClick={() => setShowError(false)} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors" aria-label="Close">
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="p-5 text-sm leading-relaxed whitespace-pre-wrap break-words overflow-y-auto flex-1" style={{ color: colors.textSecondary, fontFamily: 'ui-monospace, monospace' }}>
+              {st.error || 'Unknown error'}
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
