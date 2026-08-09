@@ -219,6 +219,23 @@ Re-running the consent script for a different Google account **overwrites** `gma
 
 Tools exposed once attached: `search_messages`, `read_message`, `list_labels`, `triage`, `send_message`, `reply_message` (the last two send real email immediately unless called with `draft=true`).
 
+### Google Sheets (MCP, no CLI)
+
+Same pattern as Gmail, same shared OAuth client -- `gateway/mcp_servers/sheets_mcp.py` talks to the Sheets API (and Drive, read-only, only for searching by name) directly.
+
+**If Gmail is already set up, there's no new Cloud project step.** It's the same `data/credentials/gmail_client_secret.json` (same app, same client_id) -- just confirm the **Sheets API** and **Drive API** are both enabled on that project (APIs & Services > Library). Sheets gets its own scopes and its own token file, so it needs its own one-time consent:
+
+```bash
+docker compose up -d --build
+docker compose run --rm -p 8765:8765 gateway python -m gateway.mcp_servers.sheets_auth_setup
+# open the printed URL, sign in, approve -> writes ./data/credentials/sheets_token.json
+docker compose restart gateway
+```
+
+Then attach the `sheets` MCP server to an agent, same as `gmail`.
+
+Tools exposed: `read_values`, `append_values`, `update_values`, `list_sheets`, `create_spreadsheet`, `find_spreadsheet` (Drive name search). `append_values`/`update_values` take `values` as a list of rows (each a list of cell values) and an A1-notation `range`, e.g. `"Sheet1!A1"`.
+
 ### Telegram
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) on Telegram

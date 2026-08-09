@@ -17,13 +17,15 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from mcp.server.fastmcp import FastMCP
 
-from gateway.mcp_servers.gmail_credentials import load_credentials
+from gateway.mcp_servers.gmail_credentials import SCOPES, TOKEN_PATH
+from gateway.mcp_servers.google_oauth import load_credentials
 
 mcp = FastMCP("gmail")
 
 
 def _service():
-    return build("gmail", "v1", credentials=load_credentials(), cache_discovery=False)
+    creds = load_credentials(SCOPES, TOKEN_PATH, "gateway.mcp_servers.gmail_auth_setup")
+    return build("gmail", "v1", credentials=creds, cache_discovery=False)
 
 
 def _http_error(e: HttpError) -> str:
