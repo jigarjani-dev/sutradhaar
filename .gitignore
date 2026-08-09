@@ -69,3 +69,4 @@ coverage/
 # Misc
 *.tsbuildinfo
 .eslintcache
+.serena/

@@ -10,6 +10,11 @@ httpx>=0.28
 sse-starlette>=2.0
 mcp>=1.28,<2
 
+# Gmail MCP server -- direct Gmail API, no gws/CLI binary needed
+google-api-python-client>=2.150
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+
 # test
 pytest>=8.0
 pytest-asyncio>=0.24

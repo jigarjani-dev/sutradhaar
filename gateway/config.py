@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     telegram_bot_token: str = ""
     google_credentials_file: str = ""
+    gmail_client_secret_file: str = "/app/data/credentials/gmail_client_secret.json"
+    gmail_token_file: str = "/app/data/credentials/gmail_token.json"
     mock_tools: bool = False
     data_dir: str = "/app/data"
     host: str = "0.0.0.0"

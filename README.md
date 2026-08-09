@@ -162,9 +162,9 @@ This returns sample data for Gmail, Sheets, and OCR tools instead of calling rea
 
 ## Connecting Real Services
 
-### Google Workspace (Gmail, Sheets)
+### Google Workspace (Sheets, via `gws`)
 
-The `gws` CLI is included in the Docker image. To authenticate:
+The `gws` CLI is included in the Docker image, used by the `sheets-reader` / `sheets-writer` skills. To authenticate:
 
 ```bash
 docker compose exec gateway gws auth setup
@@ -178,6 +178,46 @@ Or mount your existing credentials:
 volumes:
   - ~/.config/gws:/root/.config/gws
 ```
+
+### Gmail (MCP, no CLI)
+
+Gmail is a from-scratch MCP server (`gateway/mcp_servers/gmail_mcp.py`) that talks to the Gmail API directly via Google's official Python client -- no `gws`, no Node, no extra binaries to install.
+
+**A Google Cloud project + OAuth client is still required -- this can't be skipped.** Gmail is a private mailbox; Google only issues a token to an app it recognizes. That recognized "app" is an OAuth client registered in a Cloud project, and `gmail_client_secret.json` *is* that app's identity (client_id + client_secret) -- it is not a per-user secret. The one-time consent link each attendee opens afterward just proves *that human* is authorizing *that already-registered app*. No Cloud project → no client_id → no consent URL can even be built.
+
+**Two ways to run this for a workshop:**
+
+| Setup | Attendee does | Trade-off |
+|---|---|---|
+| **Each attendee makes their own Cloud project** (recommended) | ~5 min: create project → enable Gmail API → OAuth consent screen (External, Testing) → Desktop OAuth client → download JSON → add self as test user | Zero coordination, no shared secrets, no test-user list to maintain |
+| **One shared organizer project** | Organizer creates the project once and adds every attendee's Gmail address as a **Test user** on the consent screen (cap: 100) before the workshop, then distributes the one `gmail_client_secret.json` | Less per-attendee setup, but organizer must collect emails in advance and hand out a shared client file |
+
+Either way the OAuth app stays in **Testing** mode -- fine for a workshop, and it's exactly why only listed test users (or the project owner) can complete consent. Publishing/verifying the app to lift that restriction is a multi-week Google review, not worth it here.
+
+**Setup, once the Cloud project + `gmail_client_secret.json` exist:**
+
+```bash
+docker compose up -d --build
+# save the downloaded OAuth client JSON to ./data/credentials/gmail_client_secret.json
+docker compose run --rm -p 8765:8765 gateway python -m gateway.mcp_servers.gmail_auth_setup
+# open the printed URL, sign in, approve -> writes ./data/credentials/gmail_token.json
+docker compose restart gateway
+```
+
+Then attach the `gmail` MCP server to an agent (Skills & MCP panel, or `mcp_servers: ["gmail"]` in `agent.yaml`).
+
+**Credentials -- what lives where:**
+
+| File | What it is | Sensitivity |
+|---|---|---|
+| `data/credentials/gmail_client_secret.json` | The registered app's identity (client_id/secret) | Not tied to one user, but still don't publish it outside the workshop |
+| `data/credentials/gmail_token.json` | The refresh token for whichever account last ran the consent script | Full read/send access to that mailbox -- treat like a password |
+
+Both paths live under `data/`, already gitignored (`.gitignore` excludes `data/*` except the skills/mcp.json allowlist) -- neither file gets committed by accident.
+
+Re-running the consent script for a different Google account **overwrites** `gmail_token.json` -- one mailbox at a time per gateway instance; there's no per-agent/per-user token namespacing.
+
+Tools exposed once attached: `search_messages`, `read_message`, `list_labels`, `triage`, `send_message`, `reply_message` (the last two send real email immediately unless called with `draft=true`).
 
 ### Telegram
 
