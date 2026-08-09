@@ -238,9 +238,12 @@ Tools exposed: `read_values`, `append_values`, `update_values`, `list_sheets`, `
 
 ### Telegram
 
-1. Create a bot with [@BotFather](https://t.me/BotFather) on Telegram
-2. Set the token in `.env`: `TELEGRAM_BOT_TOKEN=your-token`
-3. Or enter it in the dashboard Integrations panel
+1. Create a bot with [@BotFather](https://t.me/BotFather), get its token.
+2. Add `TELEGRAM_BOT_TOKEN=your-token` to `.env`, then `docker compose up -d --build` (compose forwards `.env` via `env_file`).
+3. Message your bot anything, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `message.chat.id` -- that's your chat_id.
+4. Attach the `telegram-sender` skill to an agent, and mention the chat_id in its `SOUL.md` (e.g. "send Telegram updates to chat_id 123456789") so it doesn't need to be resupplied each time.
+
+> The dashboard's Integrations panel Telegram field does **not** work -- it saves to a DB row the skill never reads. Use `.env` only.
 
 ### Custom MCP Servers
 
