@@ -21,6 +21,7 @@ Format follows the AgentSkills standard (agentskills.io):
 
 import asyncio
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -71,6 +72,62 @@ def _read_skill_dir(skill_dir: Path) -> dict | None:
         "path": str(skill_dir),
         "scripts": scripts,
     }
+
+
+_skill_name_re = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
+
+
+def validate_skill_name(name: str) -> str:
+    n = name.strip().lower()
+    n = re.sub(r"[^a-z0-9-]", "-", n)
+    n = re.sub(r"-+", "-", n).strip("-")
+    if not n or not _skill_name_re.match(n):
+        raise ValueError("Skill name must be lowercase letters, numbers, and hyphens.")
+    return n
+
+
+def create_skill(name: str, description: str, body: str = "") -> dict:
+    """Create a new skill directory with SKILL.md under data/skills/."""
+    skill_name = validate_skill_name(name)
+    root = _skills_root()
+    root.mkdir(parents=True, exist_ok=True)
+    skill_dir = root / skill_name
+    if skill_dir.exists():
+        raise ValueError(f"Skill '{skill_name}' already exists")
+
+    desc = (description or skill_name).strip()
+    body_text = (body or f"# {skill_name}\n\nDescribe how to use this skill.").strip()
+    md = (
+        "---\n"
+        f"name: {skill_name}\n"
+        f"description: {desc}\n"
+        "---\n\n"
+        f"{body_text}\n"
+    )
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "scripts").mkdir(exist_ok=True)
+    (skill_dir / "SKILL.md").write_text(md, encoding="utf-8")
+    skill = _read_skill_dir(skill_dir)
+    if not skill:
+        raise ValueError("Failed to create skill (invalid SKILL.md)")
+    return skill
+
+
+def delete_skill(name: str) -> bool:
+    """Remove a skill directory. Returns False if not found."""
+    skill = get_skill(name)
+    if not skill:
+        return False
+    skill_dir = Path(skill["path"]).resolve()
+    root = _skills_root().resolve()
+    try:
+        skill_dir.relative_to(root)
+    except ValueError:
+        raise ValueError("Invalid skill path")
+    if not skill_dir.is_dir():
+        return False
+    shutil.rmtree(skill_dir)
+    return True
 
 
 def list_skills() -> list[dict]:

@@ -40,7 +40,7 @@ from gateway.memory import (
     build_context, summarize_old_turns, format_history_for_api,
 )
 from gateway.mcp import mcp_bridge, get_server_config, save_server_config, reload_servers
-from gateway.skills import list_skills, get_skill
+from gateway.skills import list_skills, get_skill, create_skill, delete_skill
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -514,6 +514,31 @@ async def api_get_skill(name: str):
     if not skill:
         raise HTTPException(status_code=404, detail="Skill not found")
     return skill
+
+
+@app.post("/api/skills")
+async def api_create_skill(data: dict):
+    name = data.get("name", "")
+    description = data.get("description", "")
+    body = data.get("body", "")
+    try:
+        skill = create_skill(name, description, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    await ws_manager.emit_debug("system", "skill_created", {"name": skill["name"]})
+    return skill
+
+
+@app.delete("/api/skills/{name}")
+async def api_delete_skill(name: str):
+    if not get_skill(name):
+        raise HTTPException(status_code=404, detail="Skill not found")
+    try:
+        delete_skill(name)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    await ws_manager.emit_debug("system", "skill_deleted", {"name": name})
+    return {"deleted": name}
 
 
 # ── MCP ────────────────────────────────────────────────────────

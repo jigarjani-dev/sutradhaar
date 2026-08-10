@@ -32,6 +32,10 @@ export default function SkillsPanel({ onClose, embedded }: SkillsPanelProps) {
   const [showAddMcp, setShowAddMcp] = useState(false)
   const [mcpForm, setMcpForm] = useState({ name: '', command: '', args: '', url: '' })
   const [savingMcp, setSavingMcp] = useState(false)
+  const [showAddSkill, setShowAddSkill] = useState(false)
+  const [skillForm, setSkillForm] = useState({ name: '', description: '', body: '' })
+  const [savingSkill, setSavingSkill] = useState(false)
+  const [skillStatus, setSkillStatus] = useState<{ ok: boolean; msg: string } | null>(null)
 
   const loadSkills = async () => {
     try {
@@ -94,6 +98,56 @@ export default function SkillsPanel({ onClose, embedded }: SkillsPanelProps) {
     setSavingMcp(false)
   }
 
+  const handleCreateSkill = async () => {
+    if (!skillForm.name.trim()) return
+    setSavingSkill(true)
+    setSkillStatus(null)
+    try {
+      const res = await fetch(`${API}/skills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: skillForm.name,
+          description: skillForm.description,
+          body: skillForm.body,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSkillStatus({ ok: false, msg: data.detail || 'Failed to create skill' })
+        setSavingSkill(false)
+        return
+      }
+      setSkillStatus({ ok: true, msg: `Created skill "${data.name}".` })
+      setShowAddSkill(false)
+      setSkillForm({ name: '', description: '', body: '' })
+      await loadSkills()
+      setExpanded(data.name)
+    } catch (err: any) {
+      setSkillStatus({ ok: false, msg: String(err?.message || err) })
+    }
+    setSavingSkill(false)
+  }
+
+  const handleDeleteSkill = async (name: string) => {
+    const usedBy = agentsUsingSkill(name)
+    const extra = usedBy.length ? `\n\nStill listed on agents: ${usedBy.join(', ')}. Remove it from those agents after delete.` : ''
+    if (!window.confirm(`Delete skill "${name}" from data/skills/?${extra}`)) return
+    try {
+      const res = await fetch(`${API}/skills/${encodeURIComponent(name)}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSkillStatus({ ok: false, msg: data.detail || 'Failed to delete skill' })
+        return
+      }
+      setSkillStatus({ ok: true, msg: `Deleted "${name}".` })
+      if (expanded === name) setExpanded(null)
+      await loadSkills()
+    } catch (err: any) {
+      setSkillStatus({ ok: false, msg: String(err?.message || err) })
+    }
+  }
+
   const handleRemoveMcp = async (name: string) => {
     if (!window.confirm(`Remove MCP server "${name}"?`)) return
     const updated = { ...mcpConfig.servers }
@@ -134,34 +188,75 @@ export default function SkillsPanel({ onClose, embedded }: SkillsPanelProps) {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold" style={{ color: colors.text }}>Installed Skills</h3>
-          <span className="text-xs" style={{ color: colors.textMuted }}>{skills.length} total · data/skills/</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs" style={{ color: colors.textMuted }}>{skills.length} total · data/skills/</span>
+            <button onClick={() => setShowAddSkill(o => !o)} className="text-xs font-medium px-3 py-1.5 rounded-full text-white" style={{ backgroundColor: colors.primary }}>
+              <Plus size={12} weight="bold" className="inline mr-0.5" /> Add skill
+            </button>
+          </div>
         </div>
 
-        {skills.length === 0 ? (
-          <p className="text-sm text-gray-400">No skills installed. Add SKILL.md folders under data/skills/.</p>
-        ) : (
+        {skillStatus && (
+          <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg mb-2" style={{ backgroundColor: skillStatus.ok ? '#ecfdf5' : '#fef2f2', color: skillStatus.ok ? '#059669' : '#dc2626' }}>
+            {skillStatus.ok ? <CheckCircle size={14} weight="bold" /> : <WarningCircle size={14} weight="bold" />}
+            {skillStatus.msg}
+          </div>
+        )}
+
+        {showAddSkill && (
+          <div className="rounded-2xl border-2 p-4 space-y-3 mb-3" style={{ borderColor: colors.primary, backgroundColor: '#fafaff' }}>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
+              <input value={skillForm.name} onChange={e => setSkillForm({ ...skillForm, name: e.target.value.toLowerCase().replace(/\s+/g, '-') })} className={inputCls} placeholder="my-skill" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+              <input value={skillForm.description} onChange={e => setSkillForm({ ...skillForm, description: e.target.value })} className={inputCls} placeholder="What this skill does and when to use it" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Instructions (markdown body, optional)</label>
+              <textarea value={skillForm.body} onChange={e => setSkillForm({ ...skillForm, body: e.target.value })} className={`${inputCls} min-h-[100px] font-mono text-xs`} placeholder="# My skill&#10;&#10;Steps for the agent..." />
+            </div>
+            <p className="text-[10px] text-gray-500">Creates data/skills/&lt;name&gt;/SKILL.md and an empty scripts/ folder. Add scripts on disk or copy from another skill.</p>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => { setShowAddSkill(false); setSkillForm({ name: '', description: '', body: '' }) }} className="flex-1 px-3 py-2 rounded-lg text-sm text-gray-700 bg-gray-100 hover:bg-gray-200">Cancel</button>
+              <button onClick={handleCreateSkill} disabled={savingSkill || !skillForm.name.trim()} className="flex-1 px-3 py-2 rounded-lg text-sm text-white disabled:opacity-50" style={{ backgroundColor: colors.primary }}>
+                {savingSkill ? 'Creating...' : 'Create skill'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {skills.length === 0 && !showAddSkill ? (
+          <p className="text-sm text-gray-400">No skills installed. Use Add skill above.</p>
+        ) : skills.length === 0 ? null : (
           <div className="space-y-2">
             {skills.map(s => {
               const isOpen = expanded === s.name
               const usedBy = agentsUsingSkill(s.name)
               return (
                 <div key={s.name} className="rounded-2xl border-2 transition-colors" style={{ borderColor: isOpen ? colors.primary : colors.border, backgroundColor: colors.surface }}>
-                  <button onClick={() => setExpanded(isOpen ? null : s.name)} className="w-full flex items-center gap-3 px-4 py-3 text-left">
+                  <div className="flex items-center gap-1 pr-2">
+                  <button onClick={() => setExpanded(isOpen ? null : s.name)} className="flex-1 flex items-center gap-3 px-4 py-3 text-left min-w-0">
                     {isOpen ? <CaretDown size={14} style={{ color: colors.textMuted }} /> : <CaretRight size={14} style={{ color: colors.textMuted }} />}
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: colors.primaryLight }}>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: colors.primaryLight }}>
                       <Lightbulb size={15} weight="duotone" style={{ color: colors.primary }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-sm text-gray-900">{s.name}</div>
                       <div className="text-xs text-gray-500 truncate">{s.description}</div>
                     </div>
-                    <span className="text-[10px] font-mono text-gray-400">{s.scripts?.length || 0} scripts</span>
+                    <span className="text-[10px] font-mono text-gray-400 shrink-0">{s.scripts?.length || 0} scripts</span>
                     {usedBy.length > 0 && (
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>
                         used by {usedBy.join(', ')}
                       </span>
                     )}
                   </button>
+                  <button type="button" onClick={() => handleDeleteSkill(s.name)} className="p-1.5 hover:bg-red-50 rounded text-red-500 shrink-0" title="Delete skill">
+                    <Trash size={14} />
+                  </button>
+                  </div>
                   {isOpen && (
                     <div className="px-4 pb-4 pt-1 space-y-3 border-t border-gray-100">
                       <div className="pt-2 grid grid-cols-2 gap-2 text-xs">

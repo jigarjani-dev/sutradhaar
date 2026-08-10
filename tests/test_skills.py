@@ -1,11 +1,14 @@
 """Tests for gateway/skills.py: parsing, listing, script execution."""
 
 from gateway.skills import (
+    create_skill,
+    delete_skill,
     get_skill,
     list_skills,
     execute_script,
     view_skill,
     script_tool_name,
+    validate_skill_name,
 )
 
 
@@ -46,3 +49,28 @@ async def test_view_skill_returns_body(sample_skill):
 
 def test_script_tool_name_sanitizes():
     assert script_tool_name("test-skill", "echo.py") == "skill__test-skill__echo_py"
+
+
+def test_validate_skill_name():
+    assert validate_skill_name("My Skill") == "my-skill"
+    assert validate_skill_name("abc123") == "abc123"
+
+
+def test_create_and_delete_skill(tmp_path, monkeypatch):
+    monkeypatch.setattr("gateway.skills.settings.data_dir", str(tmp_path))
+    created = create_skill("demo-skill", "Demo description", "# Demo\n\nSteps.")
+    assert created["name"] == "demo-skill"
+    assert get_skill("demo-skill") is not None
+    assert delete_skill("demo-skill") is True
+    assert get_skill("demo-skill") is None
+
+
+def test_create_skill_rejects_duplicate(tmp_path, monkeypatch):
+    monkeypatch.setattr("gateway.skills.settings.data_dir", str(tmp_path))
+    create_skill("dup", "one", "")
+    try:
+        create_skill("dup", "two", "")
+        assert False, "expected ValueError"
+    except ValueError as e:
+        assert "already exists" in str(e)
+    delete_skill("dup")
