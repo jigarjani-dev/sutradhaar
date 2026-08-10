@@ -621,7 +621,10 @@ async def a2a_root(agent_name: str, req: Request):
 
 @app.get("/")
 async def serve_dashboard():
-    return FileResponse("static/index.html")
+    return FileResponse(
+        "static/index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 # mount static assets
