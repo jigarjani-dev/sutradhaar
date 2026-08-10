@@ -72,8 +72,11 @@ class LLMEngine:
             if text and on_thinking:
                 await on_thinking(text)
 
-        # allow up to 5 tool-call roundtrips to prevent infinite loops
-        for _ in range(5):
+        # allow up to 15 tool-call roundtrips to prevent infinite loops --
+        # real workflows (write, then verify via a headless-browser test,
+        # then re-check on failure) routinely need more than a handful
+        exhausted = True
+        for _ in range(15):
             kwargs = {
                 "model": resolved_model,
                 "messages": full_messages,
@@ -91,7 +94,9 @@ class LLMEngine:
 
             # if no tool calls, return text
             if not msg.tool_calls:
-                return msg.content or ""
+                exhausted = False
+                final_text = msg.content or ""
+                break
 
             # process tool calls
             full_messages.append({
@@ -128,7 +133,23 @@ class LLMEngine:
                     "content": result,
                 })
 
-        return full_messages[-1].get("content", "") if full_messages else ""
+        if not exhausted:
+            return final_text
+
+        # Ran out of rounds mid-tool-call-chain. full_messages[-1] here is
+        # always a role="tool" message -- returning its raw content would
+        # leak a JSON blob as the agent's "reply" (a real bug this fixes).
+        # Force one final completion with no tools so the model has to
+        # write a plain-text summary of everything it did.
+        wrapup = await client.chat.completions.create(
+            model=resolved_model,
+            messages=full_messages + [{
+                "role": "user",
+                "content": "You've used up your tool-call budget for this turn. "
+                            "Summarize in plain text what you did and its outcome -- no more tool calls.",
+            }],
+        )
+        return wrapup.choices[0].message.content or ""
 
     async def chat_stream(
         self,

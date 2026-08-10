@@ -212,13 +212,17 @@ async def _synthesize_requester_loop(
     if rounds_left > 0:
         system_prompt += (
             f"\n\nYou delegated work to `{to_agent}`; this was round {round_num}. Their reply "
-            f"is below. Check it against your spec.\n"
-            f"- If it fully meets the spec, write your final reply to the user now (no marker).\n"
-            f"- If not, end your reply with ---HANDOFF: {to_agent}--- and, right before the "
-            f"marker, give one short, concrete instruction of exactly what to fix -- that "
-            f"instruction becomes {to_agent}'s next task, so be specific, not vague.\n"
-            f"You have {rounds_left} round(s) left after this one. Don't loop over cosmetic "
-            f"nitpicks -- only continue if something in your spec is actually missing or wrong."
+            f"is below.\n"
+            f"Check two things, in order:\n"
+            f"1. Did THIS delegation's ask get done correctly (verify it yourself if you have "
+            f"the tools to, don't just take their word)?\n"
+            f"2. Does YOUR OWN plan/backlog for this request still have an item you haven't "
+            f"delegated yet? If yes, you are NOT done, no matter how good this round's result "
+            f"looks -- immediately end your reply with ---HANDOFF: {to_agent}--- plus one "
+            f"short, concrete instruction for the NEXT item in your plan. Moving to the next "
+            f"planned item is never optional and never a nitpick -- it's the job. Only omit "
+            f"the marker once your entire plan is built and verified with nothing left in it.\n"
+            f"You have {rounds_left} round(s) left after this one."
         )
     else:
         system_prompt += (
