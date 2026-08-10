@@ -5,7 +5,7 @@ import re
 
 import yaml
 
-from gateway.handoff import execute_handoff, run_orchestrator
+from gateway.handoff import execute_handoff_loop, run_orchestrator
 from gateway.loader import build_system_prompt
 from gateway.memory import (
     add_message,
@@ -97,8 +97,9 @@ async def process_agent_chat(
     if handoff_match:
         target = handoff_match.group(1)
         clean_response = re.sub(r"---HANDOFF:\s*[\w-]+\s*---", "", response or "").strip()
-        full_response = await execute_handoff(
-            agent_name, target, user_message, delegation_note=clean_response
+        max_rounds = (config.get("handoff") or {}).get("max_rounds") or 4
+        full_response = await execute_handoff_loop(
+            agent_name, target, user_message, delegation_note=clean_response, max_rounds=max_rounds,
         )
     else:
         full_response = response or ""

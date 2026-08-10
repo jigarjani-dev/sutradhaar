@@ -1,11 +1,10 @@
 {
   "servers": {
     "filesystem": {
-      "command": "npx",
+      "command": "python3",
       "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/data"
+        "-m",
+        "gateway.mcp_servers.filesystem_mcp"
       ]
     },
     "gmail": {

@@ -6,6 +6,8 @@ the worker agent runs, then the requester agent synthesizes the answer for the u
 """
 
 import logging
+import re
+
 import yaml
 
 from gateway.llm import LLMEngine
@@ -16,6 +18,9 @@ from gateway.ws import ws_manager
 
 logger = logging.getLogger(__name__)
 llm_engine = LLMEngine()
+
+HANDOFF_RE = re.compile(r"---HANDOFF:\s*([\w-]+)\s*---")
+DEFAULT_MAX_HANDOFF_ROUNDS = 4
 
 
 def _capability_refs(config: dict) -> list[str]:
@@ -172,6 +177,124 @@ async def execute_handoff(
 async def route_handoff(from_agent: str, to_agent: str, context: str) -> str:
     """Backward-compatible entry: full handoff with return-to-requester."""
     return await execute_handoff(from_agent, to_agent, context)
+
+
+async def _synthesize_requester_loop(
+    from_agent: str,
+    to_agent: str,
+    user_message: str,
+    worker_reply: str,
+    round_num: int,
+    rounds_left: int,
+) -> tuple[str, bool, str]:
+    """
+    Like _synthesize_requester, but from_agent may itself emit another
+    ---HANDOFF: <to_agent>--- to keep iterating, up to rounds_left.
+
+    Returns (reply_text_with_marker_stripped, should_continue, next_delegation_note).
+    """
+    source = await get_agent(from_agent)
+    if not source:
+        return worker_reply, False, ""
+
+    config = yaml.safe_load(source["config_yaml"])
+    config["_soul_md"] = source["soul_md"]
+    kwargs = _agent_llm_kwargs(config)
+
+    await set_agent_status(from_agent, "thinking")
+    await ws_manager.emit_agent_status(from_agent, "thinking")
+
+    system_prompt = await build_system_prompt(config)
+    if rounds_left > 0:
+        system_prompt += (
+            f"\n\nYou delegated work to `{to_agent}`; this was round {round_num}. Their reply "
+            f"is below. Check it against your spec.\n"
+            f"- If it fully meets the spec, write your final reply to the user now (no marker).\n"
+            f"- If not, end your reply with ---HANDOFF: {to_agent}--- and, right before the "
+            f"marker, give one short, concrete instruction of exactly what to fix -- that "
+            f"instruction becomes {to_agent}'s next task, so be specific, not vague.\n"
+            f"You have {rounds_left} round(s) left after this one. Don't loop over cosmetic "
+            f"nitpicks -- only continue if something in your spec is actually missing or wrong."
+        )
+    else:
+        system_prompt += (
+            f"\n\nYou delegated work to `{to_agent}` for {round_num} round(s) -- that's the "
+            f"limit for this turn. Their latest reply is below. Write your FINAL reply to the "
+            f"user now: what was built, what (if anything) still doesn't fully meet the spec, "
+            f"and what the user could ask next. Do not emit ---HANDOFF---."
+        )
+
+    integrate = (
+        f"User message:\n{user_message}\n\n"
+        f"Agent `{to_agent}` replied:\n{worker_reply}\n\n"
+        "Write your reply."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": integrate},
+    ]
+
+    try:
+        raw = await llm_engine.chat(
+            messages,
+            tools=kwargs["tools"],
+            model=kwargs["model"],
+            provider=kwargs["provider"],
+            provider_override=kwargs["provider_override"],
+            agent_name=from_agent,
+        )
+    finally:
+        await set_agent_status(from_agent, "idle")
+        await ws_manager.emit_agent_status(from_agent, "idle")
+
+    raw = (raw or "").strip() or worker_reply
+    match = HANDOFF_RE.search(raw)
+    clean = HANDOFF_RE.sub("", raw).strip() or raw
+
+    if match and rounds_left > 0:
+        return clean, True, clean
+    return clean, False, ""
+
+
+async def execute_handoff_loop(
+    from_agent: str,
+    to_agent: str,
+    user_message: str,
+    delegation_note: str = "",
+    max_rounds: int = DEFAULT_MAX_HANDOFF_ROUNDS,
+) -> str:
+    """
+    Autonomous multi-round handoff: from_agent keeps delegating to to_agent
+    and re-evaluating until satisfied, capped at max_rounds so it can't loop
+    forever (analysis paralysis).
+    """
+    await ws_manager.emit_handoff(from_agent, to_agent, user_message, phase="start")
+    await set_agent_status(from_agent, "working")
+    await ws_manager.emit_agent_status(from_agent, "working")
+
+    note = delegation_note
+    final = ""
+    round_num = 0
+
+    while round_num < max_rounds:
+        round_num += 1
+        body = note.strip() or user_message
+        worker_reply = await _run_worker(from_agent, to_agent, body)
+        await ws_manager.emit_handoff(from_agent, to_agent, body, phase="worker_done")
+
+        rounds_left = max_rounds - round_num
+        final, again, note = await _synthesize_requester_loop(
+            from_agent, to_agent, user_message, worker_reply, round_num, rounds_left
+        )
+        if not again:
+            break
+
+    await ws_manager.emit_handoff(from_agent, to_agent, user_message, phase="complete")
+    await set_agent_status(from_agent, "idle")
+    await ws_manager.emit_agent_status(from_agent, "idle")
+
+    return final
 
 
 def _orchestrator_allowed_targets(config: dict) -> list[str]:
