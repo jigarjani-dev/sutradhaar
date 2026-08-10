@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ReactFlow, MiniMap, Background, Controls, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -93,9 +93,10 @@ function AgentNode({ data }: { data: AgentNodeData }) {
   const { agent, state, selected, onSelect, onToggleSkill, onToggleMcp } = data
   const color = agentColor(agent.name)
   const st = state || { name: agent.name, status: agent.status || 'idle', tools: [] }
+  const toolEvents = st.tools || []
   const isActive = st.status === 'thinking' || st.status === 'working'
   const isError = st.status === 'error'
-  const hasActivity = st.tools.length > 0
+  const hasActivity = toolEvents.length > 0
   // Selected / active / recent tool use get agent color; error uses rose pill only (not full color)
   const isColored = selected || isActive || hasActivity
   const c = isColored ? color : '#9ca3af'
@@ -433,14 +434,31 @@ function PipelineCanvasInner({
   onToggleMcp?: (agentName: string, serverName: string) => void
   activeHandoff?: { from: string; to: string; phase?: string } | null
 }) {
+  const onSelectRef = useRef(onSelect)
+  const onToggleSkillRef = useRef(onToggleSkill)
+  const onToggleMcpRef = useRef(onToggleMcp)
+  onSelectRef.current = onSelect
+  onToggleSkillRef.current = onToggleSkill
+  onToggleMcpRef.current = onToggleMcp
+
+  const stableOnSelect = useMemo(() => (name: string) => onSelectRef.current(name), [])
+  const stableOnToggleSkill = useMemo(
+    () => (agentName: string, skillName: string) => onToggleSkillRef.current?.(agentName, skillName),
+    [],
+  )
+  const stableOnToggleMcp = useMemo(
+    () => (agentName: string, serverName: string) => onToggleMcpRef.current?.(agentName, serverName),
+    [],
+  )
+
   const initialNodes = useMemo(() =>
     agents.map((a, i) => ({
       id: a.name,
       type: 'agent',
       position: { x: i * 280, y: 40 + (i % 2) * 60 },
-      data: { agent: a, state: states[a.name], selected: selected === a.name, onSelect, onToggleSkill, onToggleMcp },
+      data: { agent: a, state: states[a.name], selected: selected === a.name, onSelect: stableOnSelect, onToggleSkill: stableOnToggleSkill, onToggleMcp: stableOnToggleMcp },
     })),
-  [agents, states, selected, onSelect, onToggleSkill, onToggleMcp])
+  [agents, states, selected, stableOnSelect, stableOnToggleSkill, stableOnToggleMcp])
 
   const initialEdges = useMemo(() => {
     const edges: any[] = []

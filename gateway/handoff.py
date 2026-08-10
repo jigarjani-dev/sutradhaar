@@ -10,7 +10,7 @@ import yaml
 
 from gateway.llm import LLMEngine
 from gateway.loader import build_system_prompt
-from gateway.memory import add_message
+from gateway.memory import add_message, build_context, get_history, get_latest_summary
 from gateway.registry import get_agent, set_agent_status
 from gateway.ws import ws_manager
 
@@ -57,10 +57,9 @@ async def _run_worker(from_agent: str, to_agent: str, user_message: str) -> str:
     await ws_manager.emit_agent_status(to_agent, "thinking")
 
     system_prompt = await build_system_prompt(config)
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": handoff_body},
-    ]
+    history = await get_history(to_agent)
+    summary = await get_latest_summary(to_agent)
+    messages = build_context(history, system_prompt, summary)
 
     try:
         reply = await llm_engine.chat(
@@ -175,6 +174,79 @@ async def route_handoff(from_agent: str, to_agent: str, context: str) -> str:
     return await execute_handoff(from_agent, to_agent, context)
 
 
+def _orchestrator_allowed_targets(config: dict) -> list[str]:
+    """Agents the orchestrator may hand off to (from handoff.targets, else rule targets)."""
+    handoff = config.get("handoff") or {}
+    from_targets = [t.strip() for t in (handoff.get("targets") or []) if isinstance(t, str) and t.strip()]
+    if from_targets:
+        return list(dict.fromkeys(from_targets))
+    orch = config.get("orchestrator") or {}
+    rule_targets = []
+    for rule in orch.get("rules") or []:
+        t = (rule.get("target") or "").strip()
+        if t:
+            rule_targets.append(t)
+    return list(dict.fromkeys(rule_targets))
+
+
+async def _handoff_target_catalog(allowed: list[str]) -> list[dict]:
+    """Load name, description, and SOUL snippet for each allowed handoff target."""
+    catalog: list[dict] = []
+    for name in allowed:
+        agent = await get_agent(name)
+        if not agent:
+            continue
+        cfg = yaml.safe_load(agent["config_yaml"]) or {}
+        desc = str(cfg.get("description") or name).strip()
+        soul = (agent.get("soul_md") or "").strip()
+        catalog.append({
+            "name": name,
+            "description": desc,
+            "persona": soul[:500] if soul else "",
+        })
+    return catalog
+
+
+def _format_orchestrator_routing_prompt(catalog: list[dict], rules: list[dict]) -> str:
+    lines = [
+        "You are an orchestrator. Read the user message and pick the single best specialist "
+        "to handle it based on each agent's description and persona.",
+        "Reply with ONLY that agent's exact name, nothing else.",
+        "",
+        "Registered agents you may route to:",
+    ]
+    for entry in catalog:
+        lines.append(f"- {entry['name']}: {entry['description']}")
+        if entry.get("persona"):
+            lines.append(f"  {entry['persona'][:350].replace(chr(10), ' ')}")
+    if rules:
+        lines.append("")
+        lines.append("Optional keyword hints (not exhaustive):")
+        for rule in rules:
+            target = (rule.get("target") or "").strip()
+            if not target:
+                continue
+            kw = ", ".join(rule.get("match") or [])
+            lines.append(f"- [{kw}] -> {target}")
+    return "\n".join(lines)
+
+
+def _resolve_routing_target(raw: str, allowed: list[str]) -> str | None:
+    """Map LLM output to an allowed agent name."""
+    if not raw:
+        return None
+    text = raw.strip().lower().strip('"\'`.')
+    if text in allowed:
+        return text
+    for name in allowed:
+        if name == text or name in text.split():
+            return name
+    for name in allowed:
+        if name in text:
+            return name
+    return None
+
+
 async def run_orchestrator(orchestrator_name: str, user_message: str):
     """
     Run the orchestrator agent to classify the user message and
@@ -191,10 +263,16 @@ async def run_orchestrator(orchestrator_name: str, user_message: str):
         return "Orchestrator is not enabled for this agent"
 
     rules = orchestrator_config.get("rules", [])
+    allowed = _orchestrator_allowed_targets(config)
+    if not allowed:
+        return "Orchestrator has no handoff targets configured."
+
     lower_msg = user_message.lower()
     for rule in rules:
         keywords = rule.get("match", [])
-        target = rule.get("target", "")
+        target = (rule.get("target") or "").strip()
+        if not target or target not in allowed:
+            continue
         if any(kw.lower() in lower_msg for kw in keywords):
             await ws_manager.emit_debug(orchestrator_name, "orchestrator_route", {
                 "rule_matched": keywords,
@@ -203,29 +281,36 @@ async def run_orchestrator(orchestrator_name: str, user_message: str):
             })
             return await execute_handoff(orchestrator_name, target, user_message)
 
-    from gateway.registry import list_agents
-    agents = await list_agents()
-    agent_names = [a["name"] for a in agents if a["name"] != orchestrator_name]
+    catalog = await _handoff_target_catalog(allowed)
+    if not catalog:
+        return f"No registered agents found for handoff targets: {', '.join(allowed)}"
 
-    system = (
-        f"You are an orchestrator. Given a user message, determine which agent "
-        f"should handle it. Available agents: {', '.join(agent_names)}. "
-        f"Respond with ONLY the agent name, nothing else."
-    )
+    orch_kwargs = _agent_llm_kwargs(config)
+    system = _format_orchestrator_routing_prompt(catalog, rules)
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": f"Route this: {user_message}"},
+        {"role": "user", "content": user_message},
     ]
 
-    llm = LLMEngine()
-    target = (await llm.chat(messages)).strip().lower()
+    target_raw = await llm_engine.chat(
+        messages,
+        model=orch_kwargs["model"],
+        provider=orch_kwargs["provider"],
+        provider_override=orch_kwargs["provider_override"],
+        agent_name=orchestrator_name,
+    )
+    target = _resolve_routing_target(target_raw, allowed)
 
-    if target in agent_names:
+    if target:
         await ws_manager.emit_debug(orchestrator_name, "orchestrator_route", {
-            "rule_matched": "llm_classification",
+            "rule_matched": "description_routing",
             "target": target,
             "confidence": "llm",
+            "llm_raw": (target_raw or "")[:80],
         })
         return await execute_handoff(orchestrator_name, target, user_message)
 
-    return f"Could not determine target agent. Available: {', '.join(agent_names)}"
+    return (
+        f"Could not route to a configured target. Allowed handoff targets: {', '.join(allowed)}. "
+        f"Add keywords to orchestrator rules or rephrase your message."
+    )

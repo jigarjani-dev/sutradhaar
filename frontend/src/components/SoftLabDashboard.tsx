@@ -306,6 +306,7 @@ export default function SoftLabDashboard() {
           ...prev,
           [msg.data.agent]: {
             ...(prev[msg.data.agent] || { tools: [] }),
+            tools: (prev[msg.data.agent]?.tools) || [],
             status: msg.data.status,
             name: msg.data.agent,
             error: msg.data.status === 'error' ? (msg.data.error || 'unknown error') : undefined,
@@ -414,21 +415,27 @@ export default function SoftLabDashboard() {
           else if (phase === 'worker_done') setHandoffLabel(`${from}: integrating ${to}'s reply…`)
           else setHandoffLabel(`${from} → ${to}…`)
         }
-        setAgentStates(prev => ({
-          ...prev,
-          [from]: {
-            ...(prev[from] || { tools: [] }),
-            status: phase === 'complete' ? 'idle' : 'thinking',
-            name: from,
-            lastActivity: phase === 'complete' ? `handoff to ${to} done` : `handoff → ${to}`,
-          },
-          [to]: {
-            ...(prev[to] || { tools: [] }),
-            status: phase === 'start' ? 'thinking' : 'idle',
-            name: to,
-            lastActivity: phase === 'start' ? `handoff from ${from}` : 'idle',
-          },
-        }))
+        setAgentStates(prev => {
+          const curFrom = prev[from] || { tools: [] }
+          const curTo = prev[to] || { tools: [] }
+          return {
+            ...prev,
+            [from]: {
+              ...curFrom,
+              tools: curFrom.tools || [],
+              status: phase === 'complete' ? 'idle' : (phase === 'start' ? 'working' : curFrom.status || 'thinking'),
+              name: from,
+              lastActivity: phase === 'complete' ? `handoff to ${to} done` : `handoff → ${to}`,
+            },
+            [to]: {
+              ...curTo,
+              tools: curTo.tools || [],
+              status: phase === 'start' || phase === 'worker_done' ? 'thinking' : 'idle',
+              name: to,
+              lastActivity: phase === 'start' ? `handoff from ${from}` : 'idle',
+            },
+          }
+        })
       }
     }
     return () => ws.close()
@@ -676,11 +683,15 @@ export default function SoftLabDashboard() {
 
         {/* Center: Pipeline + Chat */}
         <main className="flex flex-col gap-4 overflow-hidden min-h-0">
-          <div className="rounded-2xl border-2 p-6 flex-1 overflow-hidden" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-            <div className="flex items-center justify-between mb-4">
+          <div className="rounded-2xl border-2 p-6 flex-1 min-h-[260px] overflow-hidden flex flex-col" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <div className="flex items-center justify-between mb-4 shrink-0">
               <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Pipeline Topology</h2>
               <span className="text-xs" style={{ color: colors.textMuted }}>click a card to chat</span>
             </div>
+            <div className="flex-1 min-h-0">
+            {agents.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>Loading agents…</div>
+            ) : (
             <PipelineCanvas
               agents={agents}
               states={agentStates}
@@ -690,6 +701,8 @@ export default function SoftLabDashboard() {
               onToggleMcp={toggleAgentMcp}
               activeHandoff={activeHandoff}
             />
+            )}
+            </div>
           </div>
           <div className="rounded-2xl border-2 flex flex-col overflow-hidden flex-1 min-h-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: colors.border }}>
