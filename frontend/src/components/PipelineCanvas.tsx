@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { ReactFlow, MiniMap, Background, Controls, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider } from '@xyflow/react'
+import { ReactFlow, MiniMap, Background, Controls, Handle, Position, useNodesState, useEdgesState, ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import {
   Cpu, X, XCircle, Wrench, Robot, ArrowClockwise, Cards, Lightning, LinkSimple, Plus, Check, PlugsConnected,
@@ -466,11 +466,27 @@ function PipelineCanvasInner({
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const { fitView } = useReactFlow()
 
-  // keep nodes/edges in sync when agents/states/selection change
-  const syncNodes = useCallback(() => setNodes(initialNodes), [initialNodes, setNodes])
-  const syncEdges = useCallback(() => setEdges(initialEdges), [initialEdges, setEdges])
-  useMemo(() => { syncNodes(); syncEdges() }, [syncNodes, syncEdges])
+  // Sync node/edge data when agents, selection, or activity change — preserve drag positions.
+  useEffect(() => {
+    setNodes(current =>
+      initialNodes.map(n => {
+        const prev = current.find(c => c.id === n.id)
+        return prev ? { ...n, position: prev.position } : n
+      }),
+    )
+    setEdges(initialEdges)
+  }, [initialNodes, initialEdges, setNodes, setEdges])
+
+  // Fit viewport when agent count changes, not on every card click / selection.
+  useEffect(() => {
+    if (agents.length === 0) return
+    const id = requestAnimationFrame(() => {
+      fitView({ padding: 0.4, duration: 200 })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [agents.length, fitView])
 
   return (
     <ReactFlow
@@ -479,8 +495,6 @@ function PipelineCanvasInner({
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       nodeTypes={nodeTypes}
-      fitView
-      fitViewOptions={{ padding: 0.4 }}
       nodesDraggable
       panOnDrag
       zoomOnScroll
