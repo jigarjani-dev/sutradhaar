@@ -50,7 +50,7 @@ llm_engine = LLMEngine()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Sutra Sarathi...")
+    logger.info("Starting Sutradhaar...")
     await db_init(settings.data_dir)
     await seed_presets()
     await mcp_bridge.start()
@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Sutra Sarathi",
+    title="Sutradhaar",
     version="1.0.0",
     lifespan=lifespan,
 )

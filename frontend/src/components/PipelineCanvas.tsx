@@ -95,7 +95,8 @@ function AgentNode({ data }: { data: AgentNodeData }) {
   const isActive = st.status === 'thinking' || st.status === 'working'
   const isError = st.status === 'error'
   const hasActivity = st.tools.length > 0
-  const isColored = selected || isActive || isError || hasActivity
+  // Selected / active / recent tool use get agent color; error uses rose pill only (not full color)
+  const isColored = selected || isActive || hasActivity
   const c = isColored ? color : '#9ca3af'
   const [flipped, setFlipped] = useState(false)
   const [showCardJson, setShowCardJson] = useState(false)

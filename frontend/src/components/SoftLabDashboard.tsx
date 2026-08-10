@@ -526,7 +526,7 @@ export default function SoftLabDashboard() {
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: colors.primaryLight }}>
             <Flask size={20} weight="duotone" style={{ color: colors.primary }} />
           </div>
-          <h1 className="text-xl font-bold" style={{ color: colors.text }}>Sutra Sarathi</h1>
+          <h1 className="text-xl font-bold" style={{ color: colors.text }}>Sutradhaar</h1>
           <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>THOUGHT LAB</span>
         </div>
           <div className="flex items-center gap-4">
