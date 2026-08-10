@@ -70,3 +70,6 @@ coverage/
 *.tsbuildinfo
 .eslintcache
 .serena/
+
+# Workshop CTF runbook (facilitator copy; keep local)
+docs/ctf-scenarios.md

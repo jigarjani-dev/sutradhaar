@@ -3,12 +3,14 @@ import { motion, AnimatePresence } from 'motion/react'
 import ReactMarkdown from 'react-markdown'
 import { 
   Plus, X, Cpu, TerminalWindow, 
-  Robot, User, PencilSimple, CheckCircle, Lightbulb, Flask
+  Robot, User, PencilSimple, CheckCircle, Lightbulb, Flask,
+  GraduationCap,
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
 import PipelineCanvas from './PipelineCanvas'
 import SkillsPanel from './SkillsPanel'
+import WorkshopPanel from './WorkshopPanel'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -456,6 +458,14 @@ export default function SoftLabDashboard() {
 
   const [editingAgent, setEditingAgent] = useState<any>(null)
   const [view, setView] = useState<'dashboard' | 'providers' | 'skills'>('dashboard')
+  const [appMode, setAppMode] = useState<'workshop' | 'playground'>(() => {
+    const saved = localStorage.getItem('sutradhaar-app-mode')
+    return saved === 'playground' ? 'playground' : 'workshop'
+  })
+
+  useEffect(() => {
+    localStorage.setItem('sutradhaar-app-mode', appMode)
+  }, [appMode])
 
   const handleAgentClick = async (agentName: string) => {
     try {
@@ -608,7 +618,81 @@ export default function SoftLabDashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: colors.bg }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: appMode === 'playground' ? colors.bg : '#faf8f5' }}>
+      {/* App mode: Workshop vs Playground */}
+      <div
+        className="shrink-0 px-6 py-2.5 flex items-center justify-center gap-3 border-b"
+        style={{
+          backgroundColor: appMode === 'workshop' ? '#0f1419' : '#eef2ff',
+          borderColor: appMode === 'workshop' ? '#292524' : colors.border,
+        }}
+      >
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] hidden sm:inline" style={{ color: appMode === 'workshop' ? '#78716c' : colors.textMuted }}>
+          Mode
+        </span>
+        <nav
+          className="flex p-1 rounded-full gap-0.5 relative"
+          style={{
+            backgroundColor: appMode === 'workshop' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.85)',
+            border: appMode === 'workshop' ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${colors.border}`,
+            boxShadow: appMode === 'playground' ? '0 2px 12px rgba(99,102,241,0.12)' : '0 0 20px rgba(217,119,6,0.15)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setAppMode('workshop')}
+            className="relative flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-colors duration-200 z-10"
+            style={
+              appMode === 'workshop'
+                ? { color: '#fff' }
+                : { color: '#78716c' }
+            }
+          >
+            {appMode === 'workshop' && (
+              <motion.span
+                layoutId="mode-pill"
+                className="absolute inset-0 rounded-full -z-10"
+                style={{
+                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+                  boxShadow: '0 4px 16px rgba(217,119,6,0.45)',
+                }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <GraduationCap size={16} weight={appMode === 'workshop' ? 'fill' : 'duotone'} />
+            Workshop
+          </button>
+          <button
+            type="button"
+            onClick={() => setAppMode('playground')}
+            className="relative flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold transition-colors duration-200 z-10"
+            style={
+              appMode === 'playground'
+                ? { color: '#fff' }
+                : { color: '#a8a29e' }
+            }
+          >
+            {appMode === 'playground' && (
+              <motion.span
+                layoutId="mode-pill"
+                className="absolute inset-0 rounded-full -z-10"
+                style={{
+                  backgroundColor: colors.primary,
+                  boxShadow: '0 4px 16px rgba(99, 102, 241, 0.4)',
+                }}
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Flask size={16} weight={appMode === 'playground' ? 'fill' : 'duotone'} />
+            Playground
+          </button>
+        </nav>
+      </div>
+
+      {appMode === 'workshop' ? (
+        <WorkshopPanel onOpenPlayground={() => setAppMode('playground')} />
+      ) : (
+        <>
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between border-b" style={{ backgroundColor: colors.surface, borderColor: colors.border, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
         <div className="flex items-center gap-3">
@@ -821,6 +905,8 @@ export default function SoftLabDashboard() {
           onSave={handleEditorSave}
           onDelete={handleEditorDelete}
         />
+      )}
+        </>
       )}
     </div>
   )
