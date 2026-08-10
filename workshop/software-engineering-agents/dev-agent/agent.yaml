@@ -1,0 +1,14 @@
+name: dev-agent
+model: openai/gpt-4o-mini
+description: ''
+skills: []
+mcp_servers:
+- filesystem
+- browser
+handoff:
+  enabled: true
+  targets:
+  - ba-agent
+orchestrator:
+  enabled: false
+  rules: []
