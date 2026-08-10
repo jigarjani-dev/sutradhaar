@@ -46,12 +46,15 @@ class WebSocketManager:
     async def emit_agent_deleted(self, name: str):
         await self.broadcast("agent_deleted", {"name": name})
 
-    async def emit_message(self, agent_name: str, role: str, content: str):
-        await self.broadcast("message", {
+    async def emit_message(self, agent_name: str, role: str, content: str, sender: str | None = None):
+        data = {
             "agent": agent_name,
             "role": role,
             "content": content,
-        })
+        }
+        if sender:
+            data["sender"] = sender
+        await self.broadcast("message", data)
 
     async def emit_thinking(self, agent_name: str, content: str):
         await self.broadcast("thinking", {
@@ -76,11 +79,12 @@ class WebSocketManager:
             "error": error,
         })
 
-    async def emit_handoff(self, from_agent: str, to_agent: str, message: str):
+    async def emit_handoff(self, from_agent: str, to_agent: str, message: str, phase: str = "start"):
         await self.broadcast("handoff", {
             "from": from_agent,
             "to": to_agent,
             "message": message,
+            "phase": phase,
         })
 
     async def emit_debug(self, agent_name: str, event_type: str, payload: dict):

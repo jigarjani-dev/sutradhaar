@@ -30,7 +30,7 @@ from gateway.llm import LLMEngine
 from gateway.loader import build_system_prompt
 from gateway.a2a import register_agent_a2a_routes, get_a2a_handler, remove_a2a_handler
 from gateway.ws import ws_manager
-from gateway.handoff import route_handoff, run_orchestrator
+from gateway.handoff import execute_handoff, run_orchestrator
 from gateway.providers import (
     seed_presets, list_providers, get_provider, create_provider, update_provider,
     delete_provider, test_connection, fetch_models,
@@ -275,11 +275,9 @@ async def api_chat(name: str, data: dict):
         if handoff_match:
             target = handoff_match.group(1)
             clean_response = re.sub(r'---HANDOFF:\s*[\w-]+\s*---', '', response).strip()
-            await ws_manager.emit_message(name, "assistant", clean_response)
-
-            # execute the handoff
-            handoff_result = await route_handoff(name, target, user_message)
-            full_response = f"{clean_response}\n\n[{target}]: {handoff_result}"
+            full_response = await execute_handoff(
+                name, target, user_message, delegation_note=clean_response
+            )
         else:
             full_response = response
 

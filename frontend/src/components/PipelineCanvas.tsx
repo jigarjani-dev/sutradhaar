@@ -37,6 +37,7 @@ const agentIcon = (agent: any, size = 20) => {
 
 function NodeStatusPill({ status, color, greyscale, error, onErrorClick }: { status: string; color: string; greyscale?: boolean; error?: string; onErrorClick?: () => void }) {
   if (status === 'thinking' || status === 'working') {
+    const label = status === 'working' ? 'handoff' : 'thinking'
     return (
       <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full shrink-0" style={{ backgroundColor: `${color}12`, color }}>
         {[0, 1, 2].map(i => (
@@ -48,7 +49,7 @@ function NodeStatusPill({ status, color, greyscale, error, onErrorClick }: { sta
             transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut', delay: i * 0.18 }}
           />
         ))}
-        <span className="text-[8px] font-semibold uppercase tracking-wide">thinking</span>
+        <span className="text-[8px] font-semibold uppercase tracking-wide">{label}</span>
       </div>
     )
   }
@@ -422,6 +423,7 @@ function PipelineCanvasInner({
   onSelect,
   onToggleSkill,
   onToggleMcp,
+  activeHandoff,
 }: {
   agents: any[]
   states: Record<string, any>
@@ -429,6 +431,7 @@ function PipelineCanvasInner({
   onSelect: (name: string) => void
   onToggleSkill?: (agentName: string, skillName: string) => void
   onToggleMcp?: (agentName: string, serverName: string) => void
+  activeHandoff?: { from: string; to: string; phase?: string } | null
 }) {
   const initialNodes = useMemo(() =>
     agents.map((a, i) => ({
@@ -447,13 +450,21 @@ function PipelineCanvasInner({
         const from = agents[i]
         const to = agents[j]
         if ((from.handoff_targets || []).includes(to.name)) {
+          const live =
+            activeHandoff &&
+            activeHandoff.from === from.name &&
+            activeHandoff.to === to.name &&
+            activeHandoff.phase !== 'complete'
           edges.push({
             id: `${from.name}-${to.name}`,
             source: from.name,
             target: to.name,
             animated: true,
-            style: { stroke: `${agentColor(from.name)}99`, strokeWidth: 2 },
-            label: 'A2A →',
+            style: {
+              stroke: `${agentColor(from.name)}${live ? '' : '99'}`,
+              strokeWidth: live ? 3.5 : 2,
+            },
+            label: live ? 'handoff…' : 'A2A →',
             labelStyle: { fill: agentColor(from.name), fontWeight: 700, fontSize: 10 },
             labelBgStyle: { fill: '#ffffff', fillOpacity: 0.85 },
             labelBgPadding: [4, 2] as [number, number],
@@ -463,7 +474,7 @@ function PipelineCanvasInner({
       }
     }
     return edges
-  }, [agents])
+  }, [agents, activeHandoff])
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)

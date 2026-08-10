@@ -70,7 +70,8 @@ async def build_system_prompt(config: dict) -> str:
         extra.append(
             f"You can hand off work to these agents by including "
             f"---HANDOFF: <agent-name>--- at the end of your response. "
-            f"Available targets: {targets}"
+            f"Available targets: {targets}. "
+            f"After they reply, you will receive their output and must answer the user yourself."
         )
 
     if orchestrator.get("enabled") and orchestrator.get("rules"):

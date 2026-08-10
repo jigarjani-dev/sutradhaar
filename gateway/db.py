@@ -72,6 +72,10 @@ async def init(data_dir: str):
         col_names = [row[1] for row in await cols.fetchall()]
         if "error" not in col_names:
             await db.execute("ALTER TABLE agents ADD COLUMN error TEXT")
+        msg_cols = await db.execute("PRAGMA table_info(messages)")
+        msg_col_names = [row[1] for row in await msg_cols.fetchall()]
+        if "sender" not in msg_col_names:
+            await db.execute("ALTER TABLE messages ADD COLUMN sender TEXT")
         await db.commit()
 
 

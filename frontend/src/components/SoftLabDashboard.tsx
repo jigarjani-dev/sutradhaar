@@ -182,6 +182,7 @@ function ChatBubble({ message }: { message: any }) {
     return <ToolCallBar tc={message.tc || message} />
   }
   const isUser = message.role === 'user'
+  const isHandoffIn = message.role === 'handoff_in'
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`flex gap-3 mb-4 ${isUser ? 'flex-row-reverse' : ''}`}>
       <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${message.color}15` }}>
@@ -189,15 +190,54 @@ function ChatBubble({ message }: { message: any }) {
       </div>
       <div className={`flex-1 ${isUser ? 'text-right' : ''}`}>
         <div className={`flex items-center gap-2 mb-1 ${isUser ? 'justify-end' : ''}`}>
-          <span className="text-xs font-semibold" style={{ color: message.color }}>{message.agent}</span>
+          <span className="text-xs font-semibold" style={{ color: message.color }}>
+            {isHandoffIn ? `${message.agent} → handoff` : message.agent}
+          </span>
           <span className="text-xs" style={{ color: colors.textMuted }}>{message.time}</span>
         </div>
-        <div className={`text-sm leading-relaxed p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} prose prose-sm max-w-none prose-headings:mb-2 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-code:bg-gray-100 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-[12px]`} style={{ backgroundColor: `${message.color}08`, color: colors.text }}>
+        <div className={`text-sm leading-relaxed p-3 rounded-2xl ${isUser ? 'rounded-tr-none' : 'rounded-tl-none'} prose prose-sm max-w-none prose-headings:mb-2 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-pre:bg-gray-100 prose-pre:text-gray-800 prose-code:bg-gray-100 prose-code:rounded prose-code:px-1 prose-code:py-0.5 prose-code:text-[12px]`} style={{ backgroundColor: `${message.color}08`, color: colors.text, ...(isHandoffIn ? { borderLeft: `3px solid ${message.color}` } : {}) }}>
           <ReactMarkdown>{message.text || ''}</ReactMarkdown>
         </div>
       </div>
     </motion.div>
   )
+}
+
+function agentColorFor(name: string) {
+  return colors.agents[name.charCodeAt(0) % colors.agents.length] || colors.primary
+}
+
+function mapApiMessage(m: any, threadAgent: string, idx: number) {
+  const id = `${threadAgent}-hist-${m.id ?? idx}`
+  if (m.role === 'handoff_in') {
+    const sender = m.sender || 'agent'
+    return {
+      id,
+      agent: sender,
+      text: m.content,
+      time: '',
+      color: agentColorFor(sender),
+      role: 'handoff_in',
+    }
+  }
+  if (m.role === 'user') {
+    return {
+      id,
+      agent: 'You',
+      text: m.content,
+      time: '',
+      color: colors.primary,
+      role: 'user',
+    }
+  }
+  return {
+    id,
+    agent: threadAgent,
+    text: m.content,
+    time: '',
+    color: agentColorFor(threadAgent),
+    role: m.role,
+  }
 }
 
 // ─── Main Component ─────────────────────────────────────────────
@@ -211,6 +251,8 @@ export default function SoftLabDashboard() {
   const [sending, setSending] = useState(false)
   const [connected, setConnected] = useState(false)
   const [agentStates, setAgentStates] = useState<Record<string, any>>({})
+  const [activeHandoff, setActiveHandoff] = useState<{ from: string; to: string; phase?: string } | null>(null)
+  const [handoffLabel, setHandoffLabel] = useState('')
   const selectedRef = useRef<string | null>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -267,9 +309,39 @@ export default function SoftLabDashboard() {
             status: msg.data.status,
             name: msg.data.agent,
             error: msg.data.status === 'error' ? (msg.data.error || 'unknown error') : undefined,
-            lastActivity: msg.data.status === 'thinking' ? 'thinking...' : msg.data.status === 'error' ? 'error' : 'waiting',
+            lastActivity: msg.data.status === 'thinking'
+              ? 'thinking...'
+              : msg.data.status === 'working'
+                ? 'handoff...'
+                : msg.data.status === 'error'
+                  ? 'error'
+                  : 'waiting',
           },
         }))
+      } else if (msg.type === 'message') {
+        const { agent: threadAgent, role, content, sender } = msg.data
+        if (selectedRef.current !== threadAgent) return
+        const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })
+        if (role === 'handoff_in') {
+          const fromName = sender || 'agent'
+          setChatMessages(prev => [...prev, {
+            id: `ho-in-${Date.now()}`,
+            agent: fromName,
+            text: content,
+            time: ts,
+            color: agentColorFor(fromName),
+            role: 'handoff_in',
+          }])
+        } else if (role === 'assistant') {
+          setChatMessages(prev => [...prev, {
+            id: `ho-out-${Date.now()}`,
+            agent: threadAgent,
+            text: content,
+            time: ts,
+            color: agentColorFor(threadAgent),
+            role: 'assistant',
+          }])
+        }
       } else if (msg.type === 'tool_call') {
         const ts = Date.now()
         setAgentStates(prev => {
@@ -332,13 +404,29 @@ export default function SoftLabDashboard() {
           })
         }
       } else if (msg.type === 'handoff') {
+        const { from, to, phase } = msg.data
+        if (phase === 'complete') {
+          setActiveHandoff(null)
+          setHandoffLabel('')
+        } else {
+          setActiveHandoff({ from, to, phase })
+          if (phase === 'start') setHandoffLabel(`${from} → ${to}: delegating…`)
+          else if (phase === 'worker_done') setHandoffLabel(`${from}: integrating ${to}'s reply…`)
+          else setHandoffLabel(`${from} → ${to}…`)
+        }
         setAgentStates(prev => ({
           ...prev,
-          [msg.data.from]: {
-            ...(prev[msg.data.from] || { tools: [] }),
-            status: 'idle',
-            name: msg.data.from,
-            lastActivity: `handed off to ${msg.data.to}`,
+          [from]: {
+            ...(prev[from] || { tools: [] }),
+            status: phase === 'complete' ? 'idle' : 'thinking',
+            name: from,
+            lastActivity: phase === 'complete' ? `handoff to ${to} done` : `handoff → ${to}`,
+          },
+          [to]: {
+            ...(prev[to] || { tools: [] }),
+            status: phase === 'start' ? 'thinking' : 'idle',
+            name: to,
+            lastActivity: phase === 'start' ? `handoff from ${from}` : 'idle',
           },
         }))
       }
@@ -379,15 +467,7 @@ export default function SoftLabDashboard() {
     fetch(`${API}/agents/${selectedAgent}/messages`)
       .then(r => r.json())
       .then(data => {
-        const color = colors.agents[selectedAgent.charCodeAt(0) % colors.agents.length] || colors.primary
-        const mapped = (data.messages || []).map((m: any, i: number) => ({
-          id: `${selectedAgent}-hist-${i}`,
-          agent: m.role === 'user' ? 'You' : selectedAgent,
-          text: m.content,
-          time: '',
-          color: m.role === 'user' ? colors.primary : color,
-          role: m.role,
-        }))
+        const mapped = (data.messages || []).map((m: any, i: number) => mapApiMessage(m, selectedAgent, i))
         setChatMessages(mapped)
       })
       .catch(() => {})
@@ -421,6 +501,8 @@ export default function SoftLabDashboard() {
         body: JSON.stringify({ message: text }),
       })
       const data = await res.json()
+      setActiveHandoff(null)
+      setHandoffLabel('')
       setChatMessages(prev => [...prev, {
         id: `a-${Date.now()}`,
         agent: selectedAgent,
@@ -606,6 +688,7 @@ export default function SoftLabDashboard() {
               onSelect={setSelectedAgent}
               onToggleSkill={toggleAgentSkill}
               onToggleMcp={toggleAgentMcp}
+              activeHandoff={activeHandoff}
             />
           </div>
           <div className="rounded-2xl border-2 flex flex-col overflow-hidden flex-1 min-h-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
@@ -623,6 +706,17 @@ export default function SoftLabDashboard() {
               </div>
             </div>
             <div ref={chatScrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+              {(handoffLabel || sending) && (
+                <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl border text-xs" style={{ borderColor: colors.border, backgroundColor: colors.primaryLight, color: colors.primary }}>
+                  <motion.span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: colors.primary }}
+                    animate={{ opacity: [1, 0.3, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                  {handoffLabel || 'Waiting for reply…'}
+                </div>
+              )}
               {chatMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-sm" style={{ color: colors.textMuted }}>
                   {selectedAgent ? 'No messages yet. Say something to start the conversation.' : 'Select an agent to chat'}

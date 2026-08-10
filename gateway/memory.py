@@ -29,11 +29,11 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-async def add_message(agent_name: str, role: str, content: str):
+async def add_message(agent_name: str, role: str, content: str, sender: str | None = None):
     async with aiosqlite.connect(get_db_path()) as db:
         await db.execute(
-            "INSERT INTO messages (agent_name, role, content) VALUES (?, ?, ?)",
-            (agent_name, role, content),
+            "INSERT INTO messages (agent_name, role, content, sender) VALUES (?, ?, ?, ?)",
+            (agent_name, role, content, sender),
         )
         await db.commit()
 
@@ -43,7 +43,7 @@ async def get_history(agent_name: str) -> list[dict]:
     async with aiosqlite.connect(get_db_path()) as db:
         db.row_factory = aiosqlite.Row
         cursor = await db.execute(
-            "SELECT id, agent_name, role, content FROM messages WHERE agent_name = ? ORDER BY id",
+            "SELECT id, agent_name, role, content, sender FROM messages WHERE agent_name = ? ORDER BY id",
             (agent_name,),
         )
         rows = await cursor.fetchall()
@@ -114,7 +114,10 @@ def build_context(messages: list[dict], system_prompt: str,
         cost = estimate_tokens(m.get("content") or "")
         if cost > budget:
             break
-        kept.append({"role": m["role"], "content": m["content"]})
+        role = m["role"]
+        if role == "handoff_in":
+            role = "user"
+        kept.append({"role": role, "content": m["content"]})
         budget -= cost
     kept.reverse()
 
@@ -188,8 +191,11 @@ async def summarize_old_turns(agent_name: str, llm_engine, model: str,
 
 
 def format_history_for_api(messages: list[dict]) -> list[dict]:
-    """Expose stored messages to the frontend (id, role, content)."""
-    return [
-        {"id": m["id"], "role": m["role"], "content": m["content"]}
-        for m in messages
-    ]
+    """Expose stored messages to the frontend (id, role, content, sender)."""
+    out = []
+    for m in messages:
+        row = {"id": m["id"], "role": m["role"], "content": m["content"]}
+        if m.get("sender"):
+            row["sender"] = m["sender"]
+        out.append(row)
+    return out
