@@ -47,6 +47,16 @@ CREATE TABLE IF NOT EXISTS debug_logs (
     timestamp TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS agent_telegram (
+    agent_name TEXT PRIMARY KEY,
+    bot_token TEXT NOT NULL,
+    bot_username TEXT,
+    allowed_chat_ids TEXT NOT NULL DEFAULT '[]',
+    poll_offset INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending_chat',
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS providers (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

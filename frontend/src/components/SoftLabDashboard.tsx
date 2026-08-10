@@ -4,13 +4,14 @@ import ReactMarkdown from 'react-markdown'
 import { 
   Plus, X, Cpu, TerminalWindow, 
   Robot, User, PencilSimple, CheckCircle, Lightbulb, Flask,
-  GraduationCap,
+  GraduationCap, PaperPlaneTilt,
 } from '@phosphor-icons/react'
 import AgentEditor from './AgentEditor'
 import ProvidersPanel from './Providers'
 import PipelineCanvas from './PipelineCanvas'
 import SkillsPanel from './SkillsPanel'
 import WorkshopPanel from './WorkshopPanel'
+import TelegramMessengerModal, { type TelegramPublicStatus } from './TelegramMessengerModal'
 
 // ── Color System ───────────────────────────────────────────────
 const colors = {
@@ -54,8 +55,23 @@ function StatusDot({ status }: { status: string }) {
   )
 }
 
-function AgentCard({ agent, isSelected, onClick, onEdit }: { agent: any; isSelected: boolean; onClick: () => void; onEdit: () => void }) {
+function AgentCard({
+  agent,
+  isSelected,
+  onClick,
+  onEdit,
+  onTelegram,
+  telegram,
+}: {
+  agent: any
+  isSelected: boolean
+  onClick: () => void
+  onEdit: () => void
+  onTelegram: () => void
+  telegram?: TelegramPublicStatus
+}) {
   const color = colors.agents[agent.name.charCodeAt(0) % colors.agents.length]
+  const tgOn = telegram?.connected
   return (
     <motion.button
       whileHover={{ y: -2 }}
@@ -73,15 +89,29 @@ function AgentCard({ agent, isSelected, onClick, onEdit }: { agent: any; isSelec
           <Cpu size={20} weight="duotone" style={{ color }} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-semibold text-sm" style={{ color: colors.text }}>{agent.name}</span>
             <StatusDot status={agent.status} />
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); onTelegram() }}
+              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] font-semibold uppercase tracking-wide shrink-0"
+              style={{
+                color: tgOn ? colors.sky : colors.textMuted,
+                borderColor: tgOn ? `${colors.sky}55` : colors.border,
+                backgroundColor: tgOn ? `${colors.sky}12` : colors.bg,
+              }}
+              title={tgOn ? 'Telegram connected' : 'Connect Telegram bot'}
+            >
+              <PaperPlaneTilt size={14} weight={tgOn ? 'fill' : 'duotone'} />
+              TG
+            </button>
           </div>
           <div className="text-xs font-medium mb-1" style={{ color }}>{agent.description || 'Agent'}</div>
         </div>
         <button
           onClick={e => { e.stopPropagation(); onEdit() }}
-          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100"
+          className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-100 shrink-0"
           style={{ color: colors.textMuted }}
           title="Edit agent"
         >
@@ -223,13 +253,15 @@ function mapApiMessage(m: any, threadAgent: string, idx: number) {
     }
   }
   if (m.role === 'user') {
+    const fromTelegram = m.sender === 'telegram'
     return {
       id,
-      agent: 'You',
+      agent: fromTelegram ? 'Telegram' : 'You',
       text: m.content,
       time: '',
-      color: colors.primary,
+      color: fromTelegram ? colors.sky : colors.primary,
       role: 'user',
+      fromTelegram,
     }
   }
   return {
@@ -255,6 +287,7 @@ export default function SoftLabDashboard() {
   const [agentStates, setAgentStates] = useState<Record<string, any>>({})
   const [activeHandoff, setActiveHandoff] = useState<{ from: string; to: string; phase?: string } | null>(null)
   const [handoffLabel, setHandoffLabel] = useState('')
+  const [telegramModalAgent, setTelegramModalAgent] = useState<string | null>(null)
   const selectedRef = useRef<string | null>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -321,11 +354,27 @@ export default function SoftLabDashboard() {
                   : 'waiting',
           },
         }))
+      } else if (msg.type === 'telegram_status') {
+        const { agent: agentName, ...tg } = msg.data
+        setAgents(prev => prev.map(a => (
+          a.name === agentName ? { ...a, telegram: tg } : a
+        )))
       } else if (msg.type === 'message') {
-        const { agent: threadAgent, role, content, sender } = msg.data
+        const { agent: threadAgent, role, content, sender, source } = msg.data
         if (selectedRef.current !== threadAgent) return
         const ts = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })
-        if (role === 'handoff_in') {
+        if (role === 'user') {
+          const fromTelegram = source === 'telegram' || sender === 'telegram'
+          setChatMessages(prev => [...prev, {
+            id: `u-${Date.now()}`,
+            agent: fromTelegram ? 'Telegram' : 'You',
+            text: content,
+            time: ts,
+            color: fromTelegram ? colors.sky : colors.primary,
+            role: 'user',
+            fromTelegram,
+          }])
+        } else if (role === 'handoff_in') {
           const fromName = sender || 'agent'
           setChatMessages(prev => [...prev, {
             id: `ho-in-${Date.now()}`,
@@ -760,6 +809,8 @@ export default function SoftLabDashboard() {
                 isSelected={selectedAgent === agent.name}
                 onClick={() => setSelectedAgent(agent.name)}
                 onEdit={() => handleAgentClick(agent.name)}
+                onTelegram={() => setTelegramModalAgent(agent.name)}
+                telegram={agent.telegram}
               />
             ))}
           </div>
@@ -792,6 +843,21 @@ export default function SoftLabDashboard() {
             <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: colors.border }}>
               <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Agent Chat</h2>
               <div className="flex items-center gap-2">
+                {selectedAgent && (
+                  <button
+                    type="button"
+                    onClick={() => setTelegramModalAgent(selectedAgent)}
+                    className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-medium"
+                    style={{
+                      borderColor: agents.find(a => a.name === selectedAgent)?.telegram?.connected ? colors.sky : colors.border,
+                      color: agents.find(a => a.name === selectedAgent)?.telegram?.connected ? colors.sky : colors.textSecondary,
+                      backgroundColor: agents.find(a => a.name === selectedAgent)?.telegram?.connected ? `${colors.sky}10` : colors.bg,
+                    }}
+                  >
+                    <PaperPlaneTilt size={14} weight="duotone" />
+                    Telegram
+                  </button>
+                )}
                 {selectedAgent && chatMessages.length > 0 && (
                   <button onClick={handleClearChat} className="text-xs px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: colors.textMuted }}>
                     Clear
@@ -893,6 +959,20 @@ export default function SoftLabDashboard() {
               </form>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {telegramModalAgent && (
+          <TelegramMessengerModal
+            agentName={telegramModalAgent}
+            open={!!telegramModalAgent}
+            onClose={() => setTelegramModalAgent(null)}
+            onStatusChange={tg => {
+              const name = telegramModalAgent
+              setAgents(prev => prev.map(a => (a.name === name ? { ...a, telegram: tg } : a)))
+            }}
+          />
         )}
       </AnimatePresence>
 

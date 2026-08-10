@@ -30,7 +30,6 @@ from gateway.llm import LLMEngine
 from gateway.loader import build_system_prompt
 from gateway.a2a import register_agent_a2a_routes, get_a2a_handler, remove_a2a_handler
 from gateway.ws import ws_manager
-from gateway.handoff import execute_handoff, run_orchestrator
 from gateway.providers import (
     seed_presets, list_providers, get_provider, create_provider, update_provider,
     delete_provider, test_connection, fetch_models,
@@ -41,6 +40,9 @@ from gateway.memory import (
 )
 from gateway.mcp import mcp_bridge, get_server_config, save_server_config, reload_servers
 from gateway.skills import list_skills, get_skill, create_skill, delete_skill
+from gateway.telegram_channel import telegram_manager
+from gateway import telegram_store
+from gateway.agent_chat import process_agent_chat, capability_refs as _agent_capability_refs
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,8 +63,11 @@ async def lifespan(app: FastAPI):
         config = yaml.safe_load(agent["config_yaml"])
         tools = config.get("tools", [])
         register_agent_a2a_routes(app, agent["name"], config, tools)
+    telegram_manager.set_llm(llm_engine)
+    await telegram_manager.start()
     logger.info(f"Gateway ready on port {settings.port}. {len(agents)} agent(s) loaded.")
     yield
+    await telegram_manager.stop()
     await mcp_bridge.stop()
     logger.info("Shutting down.")
 
@@ -93,9 +98,11 @@ async def websocket_endpoint(ws: WebSocket):
 @app.get("/api/agents")
 async def api_list_agents():
     agents = await list_agents()
+    tg_rows = {r["agent_name"]: r for r in await telegram_store.list_all()}
     for a in agents:
         a["card_url"] = f"/a2a/{a['name']}/.well-known/agent.json"
         a["tools"], a["orchestrator"], a["handoff_targets"], a["orchestrator_rules"], a["skills"], a["mcp_servers"] = _extract_agent_meta(a)
+        a["telegram"] = telegram_store.public_status(tg_rows.get(a["name"]))
     return agents
 
 
@@ -106,6 +113,7 @@ async def api_get_agent(name: str):
         raise HTTPException(status_code=404, detail="Agent not found")
     agent["card_url"] = f"/a2a/{name}/.well-known/agent.json"
     agent["tools"], agent["orchestrator"], agent["handoff_targets"], agent["orchestrator_rules"], agent["skills"], agent["mcp_servers"] = _extract_agent_meta(agent)
+    agent["telegram"] = telegram_store.public_status(await telegram_store.get_by_agent(name))
     return agent
 
 
@@ -124,18 +132,6 @@ def _extract_agent_meta(agent: dict) -> tuple[list[str], bool, list[str], list[d
         return tools, orch, handoff, rules, skills, mcp_servers
     except Exception:
         return [], False, [], [], [], []
-
-
-def _agent_capability_refs(config: dict) -> list[str]:
-    """Full list of capability references for an agent: skills + mcp servers + legacy tools."""
-    refs: list[str] = list(config.get("skills", []))
-    for m in config.get("mcp_servers", []):
-        if isinstance(m, str):
-            refs.append(m)
-        elif isinstance(m, dict) and m.get("name"):
-            refs.append(m["name"])
-    refs.extend(config.get("tools", []))
-    return refs
 
 
 @app.post("/api/agents")
@@ -211,6 +207,7 @@ async def api_delete_agent(name: str):
     deleted = await delete_agent(name)
     if not deleted:
         raise HTTPException(status_code=404, detail="Agent not found")
+    await telegram_manager.disconnect(name)
     remove_a2a_handler(name)
     await ws_manager.emit_agent_deleted(name)
     await ws_manager.emit_debug("system", "agent_deleted", {"name": name})
@@ -225,77 +222,13 @@ async def api_chat(name: str, data: dict):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    import yaml
-    config = yaml.safe_load(agent["config_yaml"])
-    config["_soul_md"] = agent["soul_md"]
-
     user_message = data.get("message", "")
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    await set_agent_status(name, "thinking")
-    await ws_manager.emit_agent_status(name, "thinking")
-    await ws_manager.emit_message(name, "user", user_message)
-
     try:
-        system_prompt = await build_system_prompt(config)
-        await add_message(name, "user", user_message)
-
-        # rebuild context from persisted history
-        history = await get_history(name)
-        summary = await get_latest_summary(name)
-        messages = build_context(history, system_prompt, summary)
-
-        tools = _agent_capability_refs(config)
-
-        thinking_parts: list[str] = []
-
-        async def on_thinking(text: str):
-            thinking_parts.append(text)
-            await ws_manager.emit_thinking(name, text)
-
-        # check if this is an orchestrator
-        orchestrator_config = config.get("orchestrator", {})
-        if orchestrator_config.get("enabled") and orchestrator_config.get("rules"):
-            response = await run_orchestrator(name, user_message)
-        else:
-            response = await llm_engine.chat(
-                messages, tools=tools, model=config.get("model"),
-                provider=config.get("provider"),
-                provider_override=config.get("provider_override"),
-                agent_name=name,
-                on_thinking=on_thinking,
-            )
-
-        if thinking_parts:
-            await add_message(name, "thinking", "\n".join(thinking_parts))
-
-        # check for handoff directive and process it
-        handoff_match = re.search(r'---HANDOFF:\s*([\w-]+)\s*---', response)
-        if handoff_match:
-            target = handoff_match.group(1)
-            clean_response = re.sub(r'---HANDOFF:\s*[\w-]+\s*---', '', response).strip()
-            full_response = await execute_handoff(
-                name, target, user_message, delegation_note=clean_response
-            )
-        else:
-            full_response = response
-
-        await add_message(name, "assistant", full_response)
-
-        # summarize old turns if history outgrew the budget (best-effort)
-        await summarize_old_turns(
-            name, llm_engine, model=config.get("model") or settings.llm_model,
-            provider=config.get("provider"),
-            provider_override=config.get("provider_override"),
-        )
-
-        await set_agent_status(name, "idle")
-        await ws_manager.emit_agent_status(name, "idle")
-        await ws_manager.emit_message(name, "assistant", full_response)
-
-        return {"agent": name, "response": full_response, "thinking": "\n".join(thinking_parts) or None}
-
+        full_response = await process_agent_chat(llm_engine, name, user_message)
+        return {"agent": name, "response": full_response, "thinking": None}
     except Exception as e:
         logger.exception(f"Chat error for agent {name}")
         await set_agent_status(name, "error", error=str(e))
@@ -384,6 +317,49 @@ async def api_clear_messages(name: str):
     await clear_history(name)
     await ws_manager.emit_debug("system", "history_cleared", {"name": name})
     return {"cleared": name}
+
+
+# ── Agent Telegram (per-agent bot) ─────────────────────────────
+
+def _telegram_connect_hint(status: dict) -> str:
+    if status.get("connected"):
+        un = status.get("bot_username") or "your bot"
+        return f"Linked to @{un}. You should see a message in Telegram."
+    un = status.get("bot_username")
+    bot = f"@{un}" if un else "your bot"
+    return f"Token saved. Open {bot} in Telegram and send any message (e.g. /start) to connect."
+
+
+@app.get("/api/agents/{name}/telegram")
+async def api_get_agent_telegram(name: str):
+    agent = await get_agent(name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return telegram_store.public_status(await telegram_store.get_by_agent(name))
+
+
+@app.put("/api/agents/{name}/telegram")
+async def api_connect_agent_telegram(name: str, data: dict):
+    agent = await get_agent(name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    token = (data.get("token") or "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="Bot token is required")
+    try:
+        status = await telegram_manager.connect(name, token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {**status, "hint": _telegram_connect_hint(status)}
+
+
+@app.delete("/api/agents/{name}/telegram")
+async def api_disconnect_agent_telegram(name: str):
+    agent = await get_agent(name)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    await telegram_manager.disconnect(name)
+    return telegram_store.public_status(None)
 
 
 # ── Integrations ───────────────────────────────────────────────
@@ -646,9 +622,20 @@ async def a2a_root(agent_name: str, req: Request):
 async def serve_dashboard():
     return FileResponse(
         "static/index.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+        },
     )
 
 
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".js", ".css", ".html")):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 # mount static assets
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")

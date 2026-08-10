@@ -46,7 +46,14 @@ class WebSocketManager:
     async def emit_agent_deleted(self, name: str):
         await self.broadcast("agent_deleted", {"name": name})
 
-    async def emit_message(self, agent_name: str, role: str, content: str, sender: str | None = None):
+    async def emit_message(
+        self,
+        agent_name: str,
+        role: str,
+        content: str,
+        sender: str | None = None,
+        source: str | None = None,
+    ):
         data = {
             "agent": agent_name,
             "role": role,
@@ -54,6 +61,8 @@ class WebSocketManager:
         }
         if sender:
             data["sender"] = sender
+        if source:
+            data["source"] = source
         await self.broadcast("message", data)
 
     async def emit_thinking(self, agent_name: str, content: str):
