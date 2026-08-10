@@ -15,6 +15,10 @@ google-api-python-client>=2.150
 google-auth-oauthlib>=1.2
 google-auth-httplib2>=0.2
 
+# Browser MCP server -- real headless-browser execution for dev/BA agents to
+# actually test static HTML/JS apps (fill/click/read DOM), not just read source
+playwright>=1.47,<2
+
 # test
 pytest>=8.0
 pytest-asyncio>=0.24

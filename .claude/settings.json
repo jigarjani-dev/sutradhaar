@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(openspec instructions *)",
+      "Bash(openspec status *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run test)",
+      "Bash(npm run lint)",
+      "Bash(openspec list *)",
+      "Bash(openspec validate *)",
+      "mcp__serena__find_symbol"
+    ]
+  }
+}

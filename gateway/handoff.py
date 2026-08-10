@@ -19,8 +19,12 @@ from gateway.ws import ws_manager
 logger = logging.getLogger(__name__)
 llm_engine = LLMEngine()
 
-HANDOFF_RE = re.compile(r"---HANDOFF:\s*([\w-]+)\s*---")
-DEFAULT_MAX_HANDOFF_ROUNDS = 4
+# Leading/closing "---" are both optional and independent: models drop one
+# side or the other unpredictably (seen both "HANDOFF: x---" and
+# "---HANDOFF: x"). A strict match on both sides silently fails to trigger
+# the handoff at all, leaking the raw marker straight into user-facing text.
+HANDOFF_RE = re.compile(r"-{0,3}\s*HANDOFF:\s*([\w]+(?:-[\w]+)*)\s*-{0,3}")
+DEFAULT_MAX_HANDOFF_ROUNDS = 20
 
 
 def _capability_refs(config: dict) -> list[str]:

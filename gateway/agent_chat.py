@@ -1,11 +1,10 @@
 """Shared agent chat pipeline for HTTP and Telegram."""
 
 import logging
-import re
 
 import yaml
 
-from gateway.handoff import execute_handoff_loop, run_orchestrator
+from gateway.handoff import HANDOFF_RE, execute_handoff_loop, run_orchestrator
 from gateway.loader import build_system_prompt
 from gateway.memory import (
     add_message,
@@ -93,11 +92,11 @@ async def process_agent_chat(
     if thinking_parts:
         await add_message(agent_name, "thinking", "\n".join(thinking_parts))
 
-    handoff_match = re.search(r"---HANDOFF:\s*([\w-]+)\s*---", response or "")
+    handoff_match = HANDOFF_RE.search(response or "")
     if handoff_match:
         target = handoff_match.group(1)
-        clean_response = re.sub(r"---HANDOFF:\s*[\w-]+\s*---", "", response or "").strip()
-        max_rounds = (config.get("handoff") or {}).get("max_rounds") or 4
+        clean_response = HANDOFF_RE.sub("", response or "").strip()
+        max_rounds = (config.get("handoff") or {}).get("max_rounds") or 20
         full_response = await execute_handoff_loop(
             agent_name, target, user_message, delegation_note=clean_response, max_rounds=max_rounds,
         )
