@@ -12,6 +12,8 @@ Event types broadcast to all connected clients:
 import json
 from fastapi import WebSocket
 
+from gateway.event_log import record_event
+
 
 class WebSocketManager:
     def __init__(self):
@@ -73,15 +75,24 @@ class WebSocketManager:
 
     async def emit_tool_call(self, agent_name: str, tool: str, args: dict, result: str):
         """Broadcast a tool invocation. result == 'running' means started."""
-        await self.broadcast("tool_call", {
-            "agent": agent_name,
+        status = "running" if result == "running" else "done"
+        payload = {
             "tool": tool,
             "args": args,
-            "status": "running" if result == "running" else "done",
+            "status": status,
             "result": "" if result == "running" else result[:500],
+        }
+        await record_event(agent_name, "tool_call", payload)
+        await self.broadcast("tool_call", {
+            "agent": agent_name,
+            **payload,
         })
 
     async def emit_agent_status(self, agent_name: str, status: str, error: str = ""):
+        payload = {"status": status}
+        if error:
+            payload["error"] = error
+        await record_event(agent_name, "agent_status", payload)
         await self.broadcast("agent_status", {
             "agent": agent_name,
             "status": status,
@@ -89,6 +100,13 @@ class WebSocketManager:
         })
 
     async def emit_handoff(self, from_agent: str, to_agent: str, message: str, phase: str = "start"):
+        payload = {
+            "from": from_agent,
+            "to": to_agent,
+            "message": message[:200],
+            "phase": phase,
+        }
+        await record_event(from_agent, "handoff", payload)
         await self.broadcast("handoff", {
             "from": from_agent,
             "to": to_agent,
@@ -97,6 +115,7 @@ class WebSocketManager:
         })
 
     async def emit_debug(self, agent_name: str, event_type: str, payload: dict):
+        await record_event(agent_name, event_type, payload)
         await self.broadcast("debug_log", {
             "agent": agent_name,
             "event_type": event_type,

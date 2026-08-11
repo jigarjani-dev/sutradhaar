@@ -32,6 +32,129 @@ const colors = {
 
 const API = '/api'
 const WS_URL = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
+const MAX_DEBUG = 120
+
+type DebugRow = {
+  id: string
+  time: string
+  agent: string
+  kind: string
+  text: string
+}
+
+function debugTime(iso?: string) {
+  const d = iso ? new Date(iso) : new Date()
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function debugRowFromApi(row: { id?: number; agent_name?: string; event_type?: string; payload_json?: string; timestamp?: string }): DebugRow {
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = JSON.parse(row.payload_json || '{}')
+  } catch {
+    payload = {}
+  }
+  return {
+    id: `db-${row.id ?? Math.random()}`,
+    time: debugTime(row.timestamp),
+    agent: row.agent_name || 'system',
+    kind: row.event_type || 'event',
+    text: formatDebugText(row.event_type || 'event', payload),
+  }
+}
+
+function formatDebugText(kind: string, data: Record<string, unknown>): string {
+  if (kind === 'handoff') {
+    return `${data.from} → ${data.to} (${data.phase})`
+  }
+  if (kind === 'tool_call') {
+    const st = data.status === 'running' ? 'start' : 'done'
+    return `${data.tool} [${st}]`
+  }
+  if (kind === 'agent_status') {
+    if (data.error) return `status ${data.status}: ${data.error}`
+    return `status → ${data.status}`
+  }
+  if (kind === 'orchestrator_route') {
+    return `route → ${data.target} (${data.confidence || 'rule'})`
+  }
+  if (kind === 'chat_start') {
+    return `chat [${data.source}]: ${data.preview}`
+  }
+  if (kind === 'handoff_received') {
+    return `handoff reply from ${data.from}`
+  }
+  if (kind === 'handoff_error') {
+    return String(data.error || 'handoff error')
+  }
+  if (Object.keys(data).length === 0) return kind
+  try {
+    const s = JSON.stringify(data)
+    return s.length > 160 ? `${s.slice(0, 157)}…` : s
+  } catch {
+    return kind
+  }
+}
+
+function debugRowFromWs(type: string, data: Record<string, unknown>): DebugRow | null {
+  const agent = String(data.agent || data.from || 'system')
+  if (type === 'debug_log') {
+    const kind = String(data.event_type || 'debug')
+    return {
+      id: `ws-${Date.now()}-${Math.random()}`,
+      time: debugTime(),
+      agent: String(data.agent || 'system'),
+      kind,
+      text: formatDebugText(kind, (data.payload as Record<string, unknown>) || {}),
+    }
+  }
+  if (type === 'handoff') {
+    return {
+      id: `ws-${Date.now()}-${Math.random()}`,
+      time: debugTime(),
+      agent: String(data.from || 'system'),
+      kind: 'handoff',
+      text: formatDebugText('handoff', data),
+    }
+  }
+  if (type === 'tool_call') {
+    return {
+      id: `ws-${Date.now()}-${Math.random()}`,
+      time: debugTime(),
+      agent,
+      kind: 'tool_call',
+      text: formatDebugText('tool_call', data),
+    }
+  }
+  if (type === 'agent_status') {
+    return {
+      id: `ws-${Date.now()}-${Math.random()}`,
+      time: debugTime(),
+      agent,
+      kind: 'agent_status',
+      text: formatDebugText('agent_status', data),
+    }
+  }
+  if (type === 'telegram_status') {
+    return {
+      id: `ws-${Date.now()}-${Math.random()}`,
+      time: debugTime(),
+      agent,
+      kind: 'telegram',
+      text: data.connected ? 'Telegram connected' : `Telegram ${data.status || 'update'}`,
+    }
+  }
+  return null
+}
+
+function debugKindColor(kind: string): string {
+  if (kind === 'handoff' || kind === 'handoff_received') return colors.amber
+  if (kind === 'tool_call') return colors.sky
+  if (kind === 'error' || kind === 'handoff_error') return colors.rose
+  if (kind === 'orchestrator_route') return colors.primary
+  if (kind === 'telegram') return colors.sky
+  return colors.textSecondary
+}
 
 // ─── Components ─────────────────────────────────────────────────
 
@@ -288,7 +411,14 @@ export default function SoftLabDashboard() {
   const [activeHandoff, setActiveHandoff] = useState<{ from: string; to: string; phase?: string } | null>(null)
   const [handoffLabel, setHandoffLabel] = useState('')
   const [telegramModalAgent, setTelegramModalAgent] = useState<string | null>(null)
+  const [debugLog, setDebugLog] = useState<DebugRow[]>([])
   const selectedRef = useRef<string | null>(null)
+  const debugScrollRef = useRef<HTMLDivElement>(null)
+
+  const pushDebug = (row: DebugRow | null) => {
+    if (!row) return
+    setDebugLog(prev => [row, ...prev].slice(0, MAX_DEBUG))
+  }
   const chatScrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     selectedRef.current = selectedAgent
@@ -321,12 +451,22 @@ export default function SoftLabDashboard() {
       })
       .catch(() => {})
 
+    fetch(`${API}/debug/logs?limit=80`)
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return
+        setDebugLog(rows.map(debugRowFromApi).slice(0, MAX_DEBUG))
+      })
+      .catch(() => {})
+
     // WebSocket
     const ws = new WebSocket(WS_URL)
     ws.onopen = () => setConnected(true)
     ws.onclose = () => setConnected(false)
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data)
+      const wsRow = debugRowFromWs(msg.type, msg.data || {})
+      if (wsRow) pushDebug(wsRow)
       if (msg.type === 'agent_created') {
         setAgents(prev => [...prev, { name: msg.data.name, status: 'idle', description: 'New agent' }])
       } else if (msg.type === 'agent_deleted') {
@@ -922,13 +1062,36 @@ export default function SoftLabDashboard() {
         </main>
 
         {/* Debug Log */}
-        <aside className="rounded-2xl border-2 p-4 overflow-y-auto" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
-          <div className="flex items-center justify-between mb-4">
+        <aside className="rounded-2xl border-2 p-4 overflow-hidden flex flex-col min-h-0" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+          <div className="flex items-center justify-between mb-3 shrink-0">
             <h2 className="text-sm font-semibold" style={{ color: colors.text }}>Debug Log</h2>
-            <TerminalWindow size={16} weight="duotone" style={{ color: colors.textMuted }} />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDebugLog([])}
+                className="text-[10px] px-2 py-0.5 rounded-md hover:bg-gray-100"
+                style={{ color: colors.textMuted }}
+              >
+                Clear
+              </button>
+              <TerminalWindow size={16} weight="duotone" style={{ color: colors.textMuted }} />
+            </div>
           </div>
-          <div className="space-y-1">
-            <div className="text-xs" style={{ color: colors.textMuted }}>No events yet</div>
+          <div ref={debugScrollRef} className="flex-1 overflow-y-auto space-y-1.5 min-h-0 font-mono text-[10px] leading-snug">
+            {debugLog.length === 0 ? (
+              <div style={{ color: colors.textMuted }}>Events appear here: chat, handoffs, tools, orchestrator routes…</div>
+            ) : (
+              debugLog.map(row => (
+                <div key={row.id} className="px-2 py-1.5 rounded-lg border" style={{ borderColor: colors.border, backgroundColor: colors.bg }}>
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span style={{ color: colors.textMuted }}>{row.time}</span>
+                    <span className="font-semibold truncate" style={{ color: debugKindColor(row.kind) }}>{row.kind}</span>
+                    <span className="truncate ml-auto" style={{ color: colors.textMuted }}>{row.agent}</span>
+                  </div>
+                  <div className="break-words" style={{ color: colors.textSecondary }}>{row.text}</div>
+                </div>
+              ))
+            )}
           </div>
         </aside>
       </div>

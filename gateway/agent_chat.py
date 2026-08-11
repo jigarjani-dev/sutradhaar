@@ -54,6 +54,11 @@ async def process_agent_chat(
 
     await set_agent_status(agent_name, "thinking")
     await ws_manager.emit_agent_status(agent_name, "thinking")
+    await ws_manager.emit_debug(
+        agent_name,
+        "chat_start",
+        {"source": message_source or "web", "preview": user_message[:120]},
+    )
     await ws_manager.emit_message(
         agent_name,
         "user",
