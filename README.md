@@ -12,18 +12,11 @@ Please do this ahead of time so we don't spend workshop time on downloads and in
 
 [Docker Desktop](https://www.docker.com/products/docker-desktop/), or [Colima](https://github.com/abiosoft/colima) if you prefer a lighter CLI-only setup. Make sure it's running before you start.
 
-### 2. Get an LLM provider API key
-
-Any one of:
-- [OpenAI](https://platform.openai.com/api-keys)
-- [Anthropic (Claude)](https://console.anthropic.com/settings/keys)
-- [OpenRouter](https://openrouter.ai/keys)
-
-### 3. Have a Telegram account
+### 2. Have a Telegram account
 
 No bot yet -- we'll create the bot token together during the workshop.
 
-### 4. Have a Google account (Gmail + Sheets)
+### 3. Have a Google account (Gmail + Sheets)
 
 No OAuth setup yet -- we'll walk through enabling the Gmail/Sheets APIs and authorizing the app together during the workshop.
 
@@ -37,13 +30,9 @@ cd sutradhaar
 docker compose up -d --build
 ```
 
-No `.env` file needed. The provider key is configured through the dashboard instead, so you can pick OpenAI, Claude, or another provider live during the workshop:
+No `.env` file needed. Open **http://localhost:8080** and confirm the dashboard loads.
 
-1. Open **http://localhost:8080**.
-2. Go to the **Providers** panel, add/edit the provider you want to use, and paste in your API key. Use **Test connection** to confirm it works.
-3. When you create an agent, pick that provider in its editor (agents don't use it automatically).
-
-If the dashboard loads and you can add a provider, you're ready for the workshop.
+If the dashboard loads, you're ready for the workshop.
 
 ```bash
 docker compose down
