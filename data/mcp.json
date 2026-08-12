@@ -7,13 +7,6 @@
         "gateway.mcp_servers.filesystem_mcp"
       ]
     },
-    "browser": {
-      "command": "python3",
-      "args": [
-        "-m",
-        "gateway.mcp_servers.browser_mcp"
-      ]
-    },
     "gmail": {
       "command": "python3",
       "args": [

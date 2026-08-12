@@ -35,10 +35,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Chromium for the browser MCP server (real execution testing, not just
-# reading source). --with-deps pulls the OS libs Chromium needs via apt.
-RUN playwright install --with-deps chromium
-
 COPY --from=frontend /build/dist static/
 COPY gateway/ gateway/
 COPY templates/ templates/

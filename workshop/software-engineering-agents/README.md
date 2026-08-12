@@ -9,12 +9,11 @@ one coarse feature request into a small working app.
 - Multi-round autonomous collaboration within a single user message
   (`execute_handoff_loop`, up to `max_rounds`), not just one delegate-and-return.
 - Tool-scoped roles: BA has read/verify-only tools (`read_file`,
-  `list_files`, `test_page`), dev-agent has `write_file`/`delete_file` too --
-  BA can inspect and test what dev builds, but cannot implement anything
-  itself. Enforced by capability list, not just instructed in the prompt.
-- Real execution-based verification, not just reading source: `browser`
-  MCP server (Playwright/headless Chromium) actually loads the built page,
-  clicks through it, and reads back computed values.
+  `list_files`), dev-agent has `write_file`/`delete_file` too -- BA can
+  inspect what dev builds, but cannot implement anything itself. Enforced
+  by capability list, not just instructed in the prompt.
+- Verification here is static (read the code, trace the logic by hand) --
+  intentionally not execution-based. See "Possible enhancement" below.
 - Analysis-and-slicing: BA breaks one coarse ask into an ordered backlog of
   small stories/slices, delegates one at a time, verifies each before
   moving to the next.
@@ -23,12 +22,24 @@ one coarse feature request into a small working app.
 
 - `gateway/mcp_servers/filesystem_mcp.py` -- sandboxed file read/write,
   registered as `filesystem` in `data/mcp.json`.
-- `gateway/mcp_servers/browser_mcp.py` -- headless-browser test tool,
-  registered as `browser`. Needs Playwright + Chromium in the image
-  (`playwright install --with-deps chromium` in the Dockerfile).
 - `gateway/handoff.py` -- `execute_handoff_loop` (bounded multi-round
   handoff) and a lenient `HANDOFF_RE` (models don't always emit the
   `---HANDOFF: name---` marker with both dashes intact).
+
+## Possible enhancement (left as homework)
+
+`gateway/mcp_servers/browser_mcp.py` already exists in this repo -- a
+headless-Chromium (Playwright) MCP tool that loads the built page, fills
+fields, clicks buttons, and reads back computed values. It's real
+execution-based verification, catching bugs static code review can't (a
+broken calculation, a JS runtime error). Deliberately left disconnected
+from the default scenario: Playwright + Chromium added ~2GB to the Docker
+image, not worth it for a workshop default. To wire it back in: add
+`playwright>=1.47,<2` to `requirements.txt`, add
+`RUN playwright install --with-deps chromium` to the Dockerfile, register
+`"browser": {"command": "python3", "args": ["-m", "gateway.mcp_servers.browser_mcp"]}`
+in `data/mcp.json`, and give both agents the `mcp__browser__test_page` tool.
+A good exercise for participants who want to go further.
 
 ## Example prompt (to ba-agent)
 
