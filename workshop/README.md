@@ -7,7 +7,7 @@ tab UI. Each scenario gets its own folder once fleshed out.
 
 1. Basic agent -- create first agent, no tools.
 2. Add a soul -- SOUL.md persona basics.
-3. Telegram integration -- bot token, telegram-sender skill, chat_id.
+3. Telegram integration -- bot token via dashboard Providers/Messenger UI (no `.env`, no telegram-sender skill).
 4. Financial agent -- Gmail/Sheets MCP, expense-tracking use case.
 5. **Software engineering agents (BA + Dev)** -- see
    `software-engineering-agents/`. First one fleshed out.

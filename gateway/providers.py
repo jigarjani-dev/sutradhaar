@@ -67,6 +67,14 @@ PRESETS: dict[str, dict[str, Any]] = {
 
 _model_cache: dict[str, dict] = {}
 
+ANTHROPIC_HOST = "api.anthropic.com"
+
+
+def _is_anthropic(base_url: str) -> bool:
+    """Anthropic's OpenAI-compat layer only serves chat/completions -- no /models
+    list endpoint exists on it, so model discovery there needs a different path."""
+    return ANTHROPIC_HOST in base_url
+
 
 # ── helpers ───────────────────────────────────────────────────
 
@@ -217,6 +225,9 @@ async def fetch_models(base_url: str, api_key: str = "", protocol: str = "openai
     Tries standard /models, falls back to provider-specific paths.
     Returns a list of model ids (empty list on failure, never raises).
     """
+    if _is_anthropic(base_url):
+        return list(PRESETS["anthropic"]["models"])
+
     base = base_url.rstrip("/")
     candidates: list[str] = []
     if protocol == "openai-completions":
@@ -268,6 +279,22 @@ async def test_connection(pid: str) -> dict:
 
     api_key = provider.get("api_key", "")
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+    if _is_anthropic(base):
+        models = json.loads(provider.get("models_json") or "[]") or PRESETS["anthropic"]["models"]
+        model = models[0] if models else "claude-haiku-4-5"
+        url = f"{base}/chat/completions"
+        try:
+            async with httpx.AsyncClient(timeout=MODEL_FETCH_TIMEOUT) as client:
+                resp = await client.post(
+                    url, headers=headers,
+                    json={"model": model, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                )
+            if resp.status_code < 400:
+                return {"ok": True, "models": models, "url": url}
+            return {"ok": False, "error": f"{resp.status_code} {resp.text[:300]}"}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": str(e)}
 
     urls = [f"{base}/models", f"{base}/v1/models"]
     if "api.deepseek.com" in base and not base.endswith("/v1"):
