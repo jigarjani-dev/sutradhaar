@@ -33,12 +33,12 @@ RUN ARCH=$(uname -m) && \
 WORKDIR /app
 
 COPY requirements.txt .
+ENV PIP_ROOT_USER_ACTION=ignore
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY --from=frontend /build/dist static/
 COPY gateway/ gateway/
 COPY templates/ templates/
-COPY samples/ samples/
 COPY app.py .
 COPY tests/ tests/
 COPY pytest.ini .
