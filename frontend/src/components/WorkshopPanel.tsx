@@ -14,8 +14,8 @@ import {
 } from '../workshop/workshopUnlock'
 import { WORKSHOP_STAGES, STEP_COUNTS } from '../workshop/stages'
 import WorkshopStageNav from './workshop/WorkshopStageNav'
-import StageBaselinePage from './workshop/StageBaselinePage'
-import StagePlaceholderPage from './workshop/StagePlaceholderPage'
+import StagePage from './workshop/StagePage'
+import StageLockedGate from './workshop/StageLockedGate'
 import { workshopColors as c } from './workshop/workshopTheme'
 
 interface WorkshopPanelProps {
@@ -25,7 +25,7 @@ interface WorkshopPanelProps {
 export default function WorkshopPanel({ onOpenPlayground }: WorkshopPanelProps) {
   const [unlocked, setUnlocked] = useState<Set<LevelId>>(() => loadUnlocked())
   const [checks, setChecks] = useState(() => loadChecks(STEP_COUNTS))
-  const [activeStage, setActiveStage] = useState<LevelId>('baseline')
+  const [activeStage, setActiveStage] = useState<LevelId>('boot')
   const [masterPw, setMasterPw] = useState('')
   const [masterErr, setMasterErr] = useState(false)
   const [showMaster, setShowMaster] = useState(false)
@@ -74,34 +74,10 @@ export default function WorkshopPanel({ onOpenPlayground }: WorkshopPanelProps) 
     }
   }
 
-  const selectStage = (id: LevelId) => {
-    setActiveStage(id)
-  }
-
-  const renderStagePage = () => {
-    if (activeStage === 'baseline') {
-      return (
-        <StageBaselinePage
-          checks={checks.baseline || []}
-          onToggleCheck={i => toggleCheck('baseline', i)}
-          onOpenPlayground={onOpenPlayground}
-        />
-      )
-    }
-
-    return (
-      <StagePlaceholderPage
-        stageId={activeStage}
-        locked={!unlocked.has(activeStage)}
-        canTryUnlock={canAttemptUnlock(activeStage, unlocked)}
-        onUnlock={pw => tryUnlockLevel(activeStage, pw)}
-      />
-    )
-  }
+  const isUnlocked = unlocked.has(activeStage)
 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: c.bg }}>
-      {/* Top bar */}
       <div
         className="shrink-0 px-4 sm:px-6 py-4 border-b flex flex-col sm:flex-row sm:items-center gap-4"
         style={{ backgroundColor: c.surface, borderColor: c.border }}
@@ -148,11 +124,26 @@ export default function WorkshopPanel({ onOpenPlayground }: WorkshopPanelProps) 
         activeId={activeStage}
         visuals={visuals}
         unlocked={unlocked}
-        onSelect={selectStage}
+        onSelect={setActiveStage}
       />
 
       <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
-        <div className="max-w-2xl mx-auto">{renderStagePage()}</div>
+        <div className="max-w-2xl mx-auto">
+          {isUnlocked ? (
+            <StagePage
+              stageId={activeStage}
+              checks={checks[activeStage] || []}
+              onToggleCheck={i => toggleCheck(activeStage, i)}
+              onOpenPlayground={onOpenPlayground}
+            />
+          ) : (
+            <StageLockedGate
+              stageId={activeStage}
+              canTryUnlock={canAttemptUnlock(activeStage, unlocked)}
+              onUnlock={pw => tryUnlockLevel(activeStage, pw)}
+            />
+          )}
+        </div>
       </div>
 
       <footer
@@ -172,7 +163,10 @@ export default function WorkshopPanel({ onOpenPlayground }: WorkshopPanelProps) 
             <input
               type="password"
               value={masterPw}
-              onChange={e => { setMasterPw(e.target.value); setMasterErr(false) }}
+              onChange={e => {
+                setMasterPw(e.target.value)
+                setMasterErr(false)
+              }}
               placeholder="Master phrase"
               className="flex-1 px-3 py-1.5 rounded-lg text-xs border"
               style={{ borderColor: c.border }}
@@ -184,7 +178,11 @@ export default function WorkshopPanel({ onOpenPlayground }: WorkshopPanelProps) 
             >
               Unlock
             </button>
-            {masterErr && <span className="text-xs self-center" style={{ color: c.rose }}>No</span>}
+            {masterErr && (
+              <span className="text-xs self-center" style={{ color: c.rose }}>
+                No
+              </span>
+            )}
           </form>
         )}
       </footer>

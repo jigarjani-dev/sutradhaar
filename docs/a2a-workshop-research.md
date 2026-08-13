@@ -69,7 +69,7 @@ Honest pitch: *“Same SOUL/agent ideas as OpenClaw; we add a **visual gateway**
 | **A2A path ignores chat memory** | `GatewayAgentExecutor.execute()` — system + single user turn, no `memory.py` | Dashboard chat and A2A task would diverge if RPC worked |
 | **Streaming advertised, not delivered** | Card `capabilities.streaming: true`; no SSE on `/a2a` | Spec clients expecting `message/stream` will fail |
 | **No task artifacts / lifecycle** | No `tasks/get`, cancel, or artifact payloads in app routes | Cannot demo long-running task or “artifact” flag |
-| **Hardcoded base URL** | Cards use `http://localhost:8080` | Broken behind another host/port unless regenerated |
+| **Hardcoded base URL** | Cards use `http://localhost:8192` | Broken behind another host/port unless regenerated |
 | **No auth on card** | Spec: OAuth, API keys, signed cards | OK for local CTF; not enterprise story |
 | **Debug log panel** | Dashboard “No events yet”; WS debug not wired to UI | Handoff / A2A events invisible in UI |
 | **Tests** | `test_cardgen.py` only; no `test_a2a.py` / `test_handoff.py` (planned in implementation-plan) | Regressions easy |
@@ -77,8 +77,8 @@ Honest pitch: *“Same SOUL/agent ideas as OpenClaw; we add a **visual gateway**
 **Live check (local):**
 
 ```bash
-curl -s http://127.0.0.1:8080/a2a/lakshmi/.well-known/agent.json   # valid card
-curl -s -X POST http://127.0.0.1:8080/a2a/lakshmi \
+curl -s http://127.0.0.1:8192/a2a/lakshmi/.well-known/agent.json   # valid card
+curl -s -X POST http://127.0.0.1:8192/a2a/lakshmi \
   -H 'Content-Type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"message/send",...}'
 # → {"agent":"lakshmi","received":{...}}  (echo only)

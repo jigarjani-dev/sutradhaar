@@ -90,11 +90,11 @@ def build_agent_card_obj(name: str, config: dict, tools: list[str]) -> dict:
         "capabilities": {"streaming": True},
         "skills": skill_objs,
         "tools": config.get("tools", []),
-        "url": f"http://localhost:8080",
+        "url": f"http://localhost:8192",
         "supportedInterfaces": [
             {
                 "protocolBinding": "JSONRPC",
-                "url": f"http://localhost:8080/a2a/{name}",
+                "url": f"http://localhost:8192/a2a/{name}",
                 "protocolVersion": "1.0",
             }
         ],
@@ -134,7 +134,7 @@ def _build_handler(agent_name: str, config: dict, tools: list[str]):
         supported_interfaces=[
             AgentInterface(
                 protocol_binding="JSONRPC",
-                url=f"http://localhost:8080/a2a/{agent_name}",
+                url=f"http://localhost:8192/a2a/{agent_name}",
                 protocol_version="1.0",
             )
         ],

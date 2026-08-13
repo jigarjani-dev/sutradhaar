@@ -34,7 +34,7 @@ After the workshop, attendees take home portable SOUL.md files and an understand
 - F1. **One-click start**
   - **Trigger:** Attendee runs `docker-compose up` from the cloned workshop repo.
   - **Actors:** A1, A2
-  - **Steps:** Docker pulls the image, starts gateway + dashboard server. Browser opens to `http://localhost:8080`. No CLI setup, no API keys required to start.
+  - **Steps:** Docker pulls the image, starts gateway + dashboard server. Browser opens to `http://localhost:8192`. No CLI setup, no API keys required to start.
   - **Outcome:** Dashboard is live, showing zero agents. Ready for first agent creation.
   - **Covered by:** R1, R2, R22
 
@@ -73,7 +73,7 @@ After the workshop, attendees take home portable SOUL.md files and an understand
 **Startup and platform**
 
 - R1. Starts with a single command: `docker-compose up`. No prior install of Node, Python, or any toolchain required on the host.
-- R2. The dashboard is served on `http://localhost:8080` and works in any modern browser. No desktop app or additional CLI steps required beyond the initial docker-compose command. Port 8080 serves the dashboard, the API, and A2A Agent Card discovery endpoints -- single port, single container.
+- R2. The dashboard is served on `http://localhost:8192` and works in any modern browser. No desktop app or additional CLI steps required beyond the initial docker-compose command. Port 8192 serves the dashboard, the API, and A2A Agent Card discovery endpoints -- single port, single container.
 - R22. The gateway runs as a single Python asyncio process inside the container. Agents share the runtime for simplicity and full dashboard visibility.
 
 **Agent creation and configuration**
@@ -124,7 +124,7 @@ After the workshop, attendees take home portable SOUL.md files and an understand
 
 ## Acceptance Examples
 
-- AE1. **Covers R1, R2.** Given a machine with Docker installed, when an attendee runs `docker-compose up` and opens `http://localhost:8080`, the dashboard appears within 30 seconds with an empty agent list and functional UI.
+- AE1. **Covers R1, R2.** Given a machine with Docker installed, when an attendee runs `docker-compose up` and opens `http://localhost:8192`, the dashboard appears within 30 seconds with an empty agent list and functional UI.
 
 - AE2. **Covers R3, R4, R5, R7.** Given the dashboard, when an attendee creates a new agent named "Lakshmi" with a SOUL.md persona "You are a helpful finance advisor" and clicks Save, the agent appears in the agent list. When the attendee sends "hello" in the agent's chat panel, the agent responds within 5 seconds with a persona-consistent reply.
 

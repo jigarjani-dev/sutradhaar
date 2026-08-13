@@ -2,7 +2,7 @@ services:
   gateway:
     build: .
     ports:
-      - "8080:8080"
+      - "8192:8192"
     volumes:
       - ./data:/app/data
       - ./credentials:/root/.config/gws

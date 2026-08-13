@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     mock_tools: bool = False
     data_dir: str = "/app/data"
     host: str = "0.0.0.0"
-    port: int = 8080
+    port: int = 8192
 
 
 settings = Settings()

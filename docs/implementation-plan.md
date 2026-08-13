@@ -47,7 +47,7 @@
 
 ```
                           ┌───────────────────────────────────────────┐
-                          │  Docker Container (localhost:8080)        │
+                          │  Docker Container (localhost:8192)        │
                           │                                           │
    Browser  ─── HTTP/WS ──┤  ┌─────────────────────────────────────┐ │
                           │  │  Uvicorn (ASGI)                      │ │
@@ -641,8 +641,8 @@ WORKDIR /app
 COPY app.py gateway/ static/ templates/ samples/ ./
 RUN mkdir -p /app/data/agents /app/data/credentials
 VOLUME ["/app/data"]
-EXPOSE 8080
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 8192
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8192"]
 ```
 
 ### 6.2 `docker-compose.yml`
@@ -653,7 +653,7 @@ services:
   gateway:
     build: .
     ports:
-      - "8080:8080"
+      - "8192:8192"
     volumes:
       - ./data:/app/data           # persist agents + db
       - ./credentials:/app/credentials  # OAuth tokens for gws
@@ -727,9 +727,9 @@ categorize spending, and maintain a Google Sheet budget.
 1. Create repo, `docker-compose.yml`, `Dockerfile`, `requirements.txt`
 2. `app.py` with FastAPI, health endpoint, static file serving
 3. `static/index.html` with basic dashboard shell (empty layout)
-4. `docker-compose up` -> `http://localhost:8080` shows dashboard
+4. `docker-compose up` -> `http://localhost:8192` shows dashboard
 
-**Verify:** `curl localhost:8080/api/gateway/health` returns `{"status": "ok"}`
+**Verify:** `curl localhost:8192/api/gateway/health` returns `{"status": "ok"}`
 
 ### Phase 2: Agent CRUD + SQLite (Day 1-2)
 

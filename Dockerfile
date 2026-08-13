@@ -46,6 +46,6 @@ COPY pytest.ini .
 RUN mkdir -p /app/data/agents /app/data/credentials
 
 VOLUME ["/app/data"]
-EXPOSE 8080
+EXPOSE 8192
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8192"]

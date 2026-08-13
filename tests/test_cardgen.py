@@ -30,4 +30,4 @@ def test_tool_to_skill_unknown_returns_none():
 
 def test_card_interfaces():
     card = build_agent_card({"name": "a1", "description": "d", "skills": []}, "# a1")
-    assert card["supportedInterfaces"][0]["url"] == "http://localhost:8080/a2a/a1"
+    assert card["supportedInterfaces"][0]["url"] == "http://localhost:8192/a2a/a1"

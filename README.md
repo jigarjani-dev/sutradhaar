@@ -30,7 +30,7 @@ cd sutradhaar
 docker compose up -d --build
 ```
 
-No `.env` file needed. Open **http://localhost:8080** and confirm the dashboard loads.
+No `.env` file needed. Open **http://localhost:8192** and confirm the dashboard loads.
 
 If the dashboard loads, you're ready for the workshop.
 

@@ -83,7 +83,7 @@ Every agent exposes A2A protocol endpoints:
 
 Example:
 ```bash
-curl http://localhost:8080/a2a/lakshmi/.well-known/agent.json
+curl http://localhost:8192/a2a/lakshmi/.well-known/agent.json
 ```
 
 ## API Reference
@@ -179,7 +179,7 @@ mcp_servers:
 ## Architecture
 
 ```
-browser → localhost:8080 (Docker)
+browser → localhost:8192 (Docker)
   ├── /              → Dashboard SPA
   ├── /api/*         → REST API (FastAPI)
   ├── /a2a/{name}/*  → A2A protocol (a2a-sdk)

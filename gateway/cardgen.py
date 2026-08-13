@@ -25,11 +25,11 @@ def build_agent_card(config: dict, soul_md: str) -> dict:
             "streaming": True,
         },
         "skills": skill_objs,
-        "url": f"http://localhost:8080",
+        "url": f"http://localhost:8192",
         "supportedInterfaces": [
             {
                 "protocolBinding": "JSONRPC",
-                "url": f"http://localhost:8080/a2a/{name}",
+                "url": f"http://localhost:8192/a2a/{name}",
                 "protocolVersion": "1.0",
             }
         ],
