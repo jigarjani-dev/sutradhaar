@@ -647,14 +647,48 @@ export default function SoftLabDashboard() {
 
   const [editingAgent, setEditingAgent] = useState<any>(null)
   const [view, setView] = useState<'dashboard' | 'providers' | 'skills'>('dashboard')
+  const [workshopEnabled, setWorkshopEnabled] = useState(() =>
+    localStorage.getItem('sutradhaar-workshop-enabled') === 'true'
+  )
   const [appMode, setAppMode] = useState<'workshop' | 'playground'>(() => {
-    const saved = localStorage.getItem('sutradhaar-app-mode')
-    return saved === 'playground' ? 'playground' : 'workshop'
+    if (localStorage.getItem('sutradhaar-workshop-enabled') !== 'true') return 'playground'
+    return localStorage.getItem('sutradhaar-app-mode') === 'workshop' ? 'workshop' : 'playground'
   })
+  const [devHint, setDevHint] = useState<string | null>(null)
+  const titleTapsRef = useRef({ count: 0, timer: 0 as ReturnType<typeof setTimeout> | 0 })
+
+  useEffect(() => {
+    localStorage.setItem('sutradhaar-workshop-enabled', workshopEnabled ? 'true' : 'false')
+    if (!workshopEnabled) setAppMode('playground')
+  }, [workshopEnabled])
 
   useEffect(() => {
     localStorage.setItem('sutradhaar-app-mode', appMode)
   }, [appMode])
+
+  useEffect(() => {
+    if (!devHint) return
+    const t = setTimeout(() => setDevHint(null), 2200)
+    return () => clearTimeout(t)
+  }, [devHint])
+
+  const handleTitleTap = () => {
+    const taps = titleTapsRef.current
+    if (taps.timer) clearTimeout(taps.timer)
+    taps.count += 1
+    if (taps.count >= 5) {
+      taps.count = 0
+      setWorkshopEnabled(v => {
+        const next = !v
+        setDevHint(next ? 'Workshop mode enabled' : 'Workshop mode disabled')
+        return next
+      })
+      return
+    }
+    taps.timer = setTimeout(() => {
+      taps.count = 0
+    }, 1800)
+  }
 
   const handleAgentClick = async (agentName: string) => {
     try {
@@ -807,24 +841,24 @@ export default function SoftLabDashboard() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: appMode === 'playground' ? colors.bg : '#faf8f5' }}>
-      {/* App mode: Workshop vs Playground */}
+    <div className="h-screen flex flex-col overflow-hidden" style={{ backgroundColor: colors.bg }}>
+      {workshopEnabled && (
       <div
         className="shrink-0 px-6 py-2.5 flex items-center justify-center gap-3 border-b"
         style={{
-          backgroundColor: appMode === 'workshop' ? '#0f1419' : '#eef2ff',
-          borderColor: appMode === 'workshop' ? '#292524' : colors.border,
+          backgroundColor: '#eef2ff',
+          borderColor: colors.border,
         }}
       >
-        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] hidden sm:inline" style={{ color: appMode === 'workshop' ? '#78716c' : colors.textMuted }}>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.2em] hidden sm:inline" style={{ color: colors.textMuted }}>
           Mode
         </span>
         <nav
           className="flex p-1 rounded-full gap-0.5 relative"
           style={{
-            backgroundColor: appMode === 'workshop' ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.85)',
-            border: appMode === 'workshop' ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${colors.border}`,
-            boxShadow: appMode === 'playground' ? '0 2px 12px rgba(99,102,241,0.12)' : '0 0 20px rgba(217,119,6,0.15)',
+            backgroundColor: 'rgba(255,255,255,0.85)',
+            border: `1px solid ${colors.border}`,
+            boxShadow: '0 2px 12px rgba(99,102,241,0.12)',
           }}
         >
           <button
@@ -834,7 +868,7 @@ export default function SoftLabDashboard() {
             style={
               appMode === 'workshop'
                 ? { color: '#fff' }
-                : { color: '#78716c' }
+                : { color: colors.textSecondary }
             }
           >
             {appMode === 'workshop' && (
@@ -842,8 +876,8 @@ export default function SoftLabDashboard() {
                 layoutId="mode-pill"
                 className="absolute inset-0 rounded-full -z-10"
                 style={{
-                  background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                  boxShadow: '0 4px 16px rgba(217,119,6,0.45)',
+                  backgroundColor: colors.primary,
+                  boxShadow: '0 4px 16px rgba(99, 102, 241, 0.4)',
                 }}
                 transition={{ type: 'spring', stiffness: 400, damping: 30 }}
               />
@@ -858,7 +892,7 @@ export default function SoftLabDashboard() {
             style={
               appMode === 'playground'
                 ? { color: '#fff' }
-                : { color: '#a8a29e' }
+                : { color: colors.textSecondary }
             }
           >
             {appMode === 'playground' && (
@@ -877,8 +911,9 @@ export default function SoftLabDashboard() {
           </button>
         </nav>
       </div>
+      )}
 
-      {appMode === 'workshop' ? (
+      {workshopEnabled && appMode === 'workshop' ? (
         <WorkshopPanel onOpenPlayground={() => setAppMode('playground')} />
       ) : (
         <>
@@ -888,7 +923,13 @@ export default function SoftLabDashboard() {
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: colors.primaryLight }}>
             <Flask size={20} weight="duotone" style={{ color: colors.primary }} />
           </div>
-          <h1 className="text-xl font-bold" style={{ color: colors.text }}>Sutradhaar</h1>
+          <h1
+            className="text-xl font-bold select-none"
+            style={{ color: colors.text, cursor: 'default' }}
+            onClick={handleTitleTap}
+          >
+            Sutradhaar
+          </h1>
           <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.primaryLight, color: colors.primary }}>THOUGHT LAB</span>
         </div>
           <div className="flex items-center gap-4">
@@ -927,6 +968,19 @@ export default function SoftLabDashboard() {
             </motion.button>
           </div>
       </header>
+      <AnimatePresence>
+        {devHint && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="fixed top-4 left-1/2 z-[60] -translate-x-1/2 px-4 py-2 rounded-full text-xs font-semibold text-white shadow-lg pointer-events-none"
+            style={{ backgroundColor: colors.text }}
+          >
+            {devHint}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       {view === 'providers' ? (
