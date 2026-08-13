@@ -19,7 +19,9 @@ Config file: data/mcp.json
 
 import json
 import logging
+import os
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 import httpx
 from mcp import ClientSession, StdioServerParameters
@@ -29,6 +31,30 @@ from mcp.client.streamable_http import streamable_http_client
 from gateway.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _stdio_env(extra: dict | None) -> dict | None:
+    """Merge server env into process env so PATH/HOME survive (MCP replaces env if set)."""
+    if not extra:
+        return None
+    merged = dict(os.environ)
+    for k, v in extra.items():
+        if v is not None:
+            merged[str(k)] = str(v)
+    return merged
+
+
+def _rewrite_localhost_url(url: str) -> str:
+    """Inside Docker, localhost is the gateway container — reach the host instead."""
+    if not url or not Path("/.dockerenv").exists():
+        return url
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if host not in ("localhost", "127.0.0.1"):
+        return url
+    netloc = parsed.netloc.replace(host, "host.docker.internal", 1)
+    return urlunparse(parsed._replace(netloc=netloc))
+
 
 def _mcp_config_path() -> Path:
     return Path(settings.data_dir) / "mcp.json"
@@ -58,16 +84,21 @@ class McpServerHandle:
             http_client = None
             if headers:
                 http_client = httpx.AsyncClient(headers=headers, timeout=30)
-            self._transport_ctx = streamable_http_client(cfg["url"], http_client=http_client)
+            mcp_url = _rewrite_localhost_url(cfg["url"])
+            if mcp_url != cfg["url"]:
+                logger.info("MCP '%s' URL rewritten for Docker: %s → %s", self.name, cfg["url"], mcp_url)
+            self._transport_ctx = streamable_http_client(mcp_url, http_client=http_client)
         else:
             params = StdioServerParameters(
                 command=cfg["command"],
                 args=cfg.get("args", []),
-                env=cfg.get("env") or None,
+                env=_stdio_env(cfg.get("env")),
             )
             self._transport_ctx = stdio_client(params)
 
-        read, write = await self._transport_ctx.__aenter__()
+        # streamable_http_client yields (read, write) or (read, write, get_session_id)
+        streams = await self._transport_ctx.__aenter__()
+        read, write = streams[0], streams[1]
         self._session = ClientSession(read, write)
         await self._session.__aenter__()
         await self._session.initialize()

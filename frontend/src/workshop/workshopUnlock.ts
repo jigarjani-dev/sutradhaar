@@ -3,7 +3,7 @@
  * Facilitator passwords → SHA-256(salt + password) below.
  * Placeholders:
  *   shape=soul, lakshmi=banana, sheets=sticky, gmail=inbox,
- *   handoff=wire, door=route, master=sutradhaar
+ *   handoff=wire, door=route, search=query, master=sutradhaar
  */
 
 const STORAGE_UNLOCKED = 'sutradhaar-workshop-unlocked'
@@ -19,6 +19,7 @@ export const LEVEL_ORDER = [
   'gmail',
   'handoff',
   'door',
+  'search',
 ] as const
 export type LevelId = (typeof LEVEL_ORDER)[number]
 
@@ -34,6 +35,7 @@ const LEGACY_LEVEL: Record<string, LevelId> = {
 /** level id → hex sha256(salt-level + password) */
 export const UNLOCK_HASHES: Record<string, string> = {
   shape: 'e6e09805155b9d9c8ebfe951fe8d9bd2494fbc2c63a74e3758e542f45659f9d2',
+  search: '8aea2ce0eb94882e7e841fa4f6897ef380384364033f8a881acff2634ad3b768',
   lakshmi: '333432218a6b0976a0bfa25f03912dbe9edc35520b6b6e5c60c4f34ef5828b56',
   sheets: '64ea2fde5d4fabbbbfa43505816f36392acbfc5898eadea72311e4975455ba29',
   gmail: 'fcebaa53301b0a6a0f4bbb6942dbc6142f9501cda767a778a7d2b7848d6549f4',

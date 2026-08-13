@@ -329,6 +329,50 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
     needsCode: true,
     showPlaygroundCta: true,
   },
+  {
+    id: 'search',
+    index: 8,
+    title: 'Web search MCP',
+    shortTitle: 'Search',
+    blurb: 'Paste an MCP URL to get live web search — no custom code.',
+    xp: 200,
+    theory: [
+      'MCP servers can be remote Streamable HTTP endpoints.',
+      'You register them by name + URL in Skills — the gateway loads their tools.',
+      'Bind a server to an agent so only that agent can call those tools.',
+    ],
+    do: [
+      'Compose already runs SearXNG + mcp-searxng (HTTP on :3000).',
+      'In Playground → Skills → Add server → Streamable HTTP.',
+      'Name it searxng, paste http://localhost:3000/mcp, save.',
+      'Create agent web-search, bind searxng, ask a search question.',
+    ],
+    tasks: [
+      {
+        title: 'MCP endpoint reachable',
+        detail:
+          'Confirm the search MCP is up: open http://localhost:3000/health (or ask the facilitator). You’re registering this URL next — not writing code.',
+      },
+      {
+        title: 'Register by URL',
+        detail:
+          'Skills → Add server → Streamable HTTP. Name: searxng. URL: http://localhost:3000/mcp. Save and confirm tools appear for that server.',
+      },
+      {
+        title: 'Web-search agent',
+        detail:
+          'Create agent web-search (short SOUL: use web search tools, cite URLs). Bind the searxng MCP to that agent only.',
+      },
+      {
+        title: 'Live search reply',
+        detail:
+          'Ask web-search something current (e.g. a news headline). Flag this when the answer clearly used search tools / cited links — not a pure guess.',
+      },
+    ],
+    tip: 'Paste URL only — do not install packages inside the gateway image.',
+    needsCode: true,
+    showPlaygroundCta: true,
+  },
 ]
 
 export const STAGE_BY_ID = Object.fromEntries(

@@ -73,8 +73,15 @@ export default function SkillsPanel({ onClose, embedded }: SkillsPanelProps) {
     setSavingMcp(true)
     setMcpStatus(null)
     const server: Record<string, any> = {}
+    const url = mcpForm.url.trim()
     if (mcpForm.url) {
-      server.url = mcpForm.url
+      // Streamable HTTP mode (url field shown; stub "http://" means not filled yet)
+      if (!url || url === 'http://') {
+        setMcpStatus({ ok: false, msg: 'Enter a Streamable HTTP MCP URL.' })
+        setSavingMcp(false)
+        return
+      }
+      server.url = url
     } else {
       server.command = mcpForm.command || 'npx'
       server.args = mcpForm.args ? mcpForm.args.split(' ').filter(Boolean) : []
@@ -320,7 +327,7 @@ export default function SkillsPanel({ onClose, embedded }: SkillsPanelProps) {
               <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
               <div className="flex gap-2">
                 <button onClick={() => setMcpForm({ ...mcpForm, url: '' })} className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border-2 ${!mcpForm.url ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>stdio (local)</button>
-                <button onClick={() => setMcpForm({ ...mcpForm, command: '', args: '' })} className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border-2 ${mcpForm.url ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>Streamable HTTP</button>
+                <button onClick={() => setMcpForm({ ...mcpForm, command: '', args: '', url: mcpForm.url || 'http://' })} className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border-2 ${mcpForm.url ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600'}`}>Streamable HTTP</button>
               </div>
             </div>
             {mcpForm.url ? (

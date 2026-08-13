@@ -1,0 +1,14 @@
+# Minimal SearXNG config for the workshop (JSON API enabled for mcp-searxng).
+use_default_settings: true
+
+server:
+  secret_key: "sutradhaar-workshop-searxng"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
