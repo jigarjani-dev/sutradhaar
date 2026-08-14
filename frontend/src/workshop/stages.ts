@@ -227,9 +227,9 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
       {
         label: '2.7',
         xp: 30,
-        title: 'Place credentials',
+        title: 'Place credentials and rebuild docker image',
         detail:
-          'Copy the credentials json into data/credentials/ as "google_client_secret.json". BUILD the docker image again.',
+          'Copy the credentials json into data/credentials/ as "google_client_secret.json". REBUILD the docker image.',
       },
       {
         label: '2.8',
@@ -284,9 +284,28 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
     ],
     tasks: [
       {
+        title: 'Enable GMail API',
+        detail:
+          'Enable the GMail API in the same Google Cloud project. https://console.developers.google.com/apis/api/gmail.googleapis.com/',
+      },
+      {
         title: 'Gmail MCP online',
         detail:
           'Connect Gmail MCP to your agent with the room setup. Confirm tools show up for that agent.',
+      },
+      {
+        title: 'Run auth setup',
+        detail:
+          'Run `docker compose run --rm -p 8765:8765 gateway python -m gateway.mcp_servers.gmail_auth_setup` and note the url.',
+      },
+      {
+        title: 'Grant permissions',
+        detail:
+          'Access the url in the same browser where your GMail user is logged in. Grant all the permissions.',
+      },
+      {
+        title: 'Restart gateway',
+        detail: 'Restart gateway with `docker compose restart gateway`.',
       },
       {
         title: 'Open a real message',
@@ -294,9 +313,9 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
           'List or open a test / labeled mail the facilitator prepared. You should see a real subject or snippet, not a guess.',
       },
       {
-        title: 'Grounded answer',
+        title: 'Add expenses from mail',
         detail:
-          'Ask a question only that mail can answer. Mark this when the reply clearly uses the mail content.',
+          'Ask Lakshmi to take the 5 latest expenses from your mail and add them to the sheet.',
       },
     ],
     tip: 'Homework stretch: poll Gmail on a timer outside room time.',
