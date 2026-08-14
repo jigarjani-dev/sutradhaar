@@ -725,32 +725,16 @@ export default function SoftLabDashboard() {
     if (!text || !selectedAgent || sending) return
     setChatInput('')
     setSending(true)
-    const color = colors.agents[selectedAgent.charCodeAt(0) % colors.agents.length] || colors.primary
-    setChatMessages(prev => [...prev, {
-      id: `u-${Date.now()}`,
-      agent: 'You',
-      text,
-      time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-      color: colors.primary,
-      role: 'user',
-    }])
     try {
-      const res = await fetch(`${API}/agents/${selectedAgent}/chat`, {
+      // User + assistant bubbles arrive via the /ws "message" broadcast
+      // (gateway/agent_chat.py emits both) — don't append here too.
+      await fetch(`${API}/agents/${selectedAgent}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       })
-      const data = await res.json()
       setActiveHandoff(null)
       setHandoffLabel('')
-      setChatMessages(prev => [...prev, {
-        id: `a-${Date.now()}`,
-        agent: selectedAgent,
-        text: data.response,
-        time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
-        color,
-        role: 'assistant',
-      }])
     } catch (err) {
       console.error('Chat failed:', err)
     }
