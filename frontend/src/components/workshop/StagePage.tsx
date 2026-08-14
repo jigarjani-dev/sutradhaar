@@ -150,7 +150,7 @@ export default function StagePage({
                         className="text-[10px] font-bold uppercase tracking-wider"
                         style={{ color: checked ? c.emerald : c.primary }}
                       >
-                        Task {i + 1}
+                        Task {task.label ?? i + 1}
                       </span>
                       <span
                         className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
@@ -161,6 +161,14 @@ export default function StagePage({
                       >
                         {checked ? 'Captured' : 'Flag'}
                       </span>
+                      {task.xp != null && (
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: '#fef3c7', color: '#92400e' }}
+                        >
+                          +{task.xp} XP
+                        </span>
+                      )}
                     </span>
                     <span
                       className="block text-sm font-bold mt-1 leading-snug"

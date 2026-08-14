@@ -7,6 +7,10 @@ export type WorkshopTask = {
   title: string
   /** Up to ~2 lines of how to do / what proves it */
   detail: string
+  /** Explicit label override, e.g. "2.1" (defaults to array index + 1) */
+  label?: string
+  /** Points this task is worth, shown as a badge */
+  xp?: number
 }
 
 export type WorkshopStage = {
@@ -161,7 +165,7 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
     title: 'Sticky tools',
     shortTitle: 'Sheets',
     blurb: 'When chat memory dies, MCP + Sheets keep the record.',
-    xp: 300,
+    xp: 600,
     theory: [
       'Clear chat = amnesia for history-only agents.',
       'MCP tools let the agent act outside the chat.',
@@ -183,6 +187,68 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
         title: 'Sheets MCP online',
         detail:
           'Attach the Google Sheets MCP (room credentials from facilitator) so the agent can call sheet tools.',
+      },
+      {
+        label: '2.1',
+        xp: 30,
+        title: 'Browser logged in',
+        detail: 'Open the browser where your GMail user is already logged in.',
+      },
+      {
+        label: '2.2',
+        xp: 30,
+        title: 'Create GCP project',
+        detail: 'Create Google Cloud Project "Sutradhaar" for your GMail.',
+      },
+      {
+        label: '2.3',
+        xp: 30,
+        title: 'Configure consent screen',
+        detail: 'Configure the OAuth consent screen for the project. Click "Credentials" and then "Configure Consent screen"',
+      },
+      {
+        label: '2.4',
+        xp: 30,
+        title: 'Enable APIs',
+        detail: 'Enable Sheets API and Drive API.',
+      },
+      {
+        label: '2.5',
+        xp: 30,
+        title: 'Add test user',
+        detail: 'Add a test user — the same GMail you are using.',
+      },
+      {
+        label: '2.6',
+        xp: 30,
+        title: 'Create OAuth client',
+        detail: 'Create OAuth Client and download the credentials json.',
+      },
+      {
+        label: '2.7',
+        xp: 30,
+        title: 'Place credentials',
+        detail:
+          'Copy the credentials json into data/credentials/ as "google_client_token.json".',
+      },
+      {
+        label: '2.8',
+        xp: 30,
+        title: 'Run auth setup',
+        detail:
+          'Run `docker compose run --rm -p 8765:8765 gateway python -m gateway.mcp_servers.sheets_auth_setup` and note the url.',
+      },
+      {
+        label: '2.9',
+        xp: 30,
+        title: 'Grant permissions',
+        detail: 'Access the url in the same browser where your GMail user is logged in. Grant all the permissions.',
+      },
+      {
+        label: '2.10',
+        xp: 30,
+        title: 'Restart gateway',
+        detail: 'Restart gateway with `docker compose restart gateway`.',
       },
       {
         title: 'Write sticks',
