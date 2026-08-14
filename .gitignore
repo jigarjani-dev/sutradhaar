@@ -75,3 +75,6 @@ coverage/
 
 # Workshop CTF runbook (facilitator copy; keep local)
 docs/ctf-scenarios.md
+
+output/
+tmp/

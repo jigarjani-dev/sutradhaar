@@ -5,7 +5,6 @@ services:
       - "8192:8192"
     volumes:
       - ./data:/app/data
-      - ./credentials:/root/.config/gws
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
