@@ -229,7 +229,7 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
         xp: 30,
         title: 'Place credentials',
         detail:
-          'Copy the credentials json into data/credentials/ as "google_client_token.json".',
+          'Copy the credentials json into data/credentials/ as "google_client_secret.json". BUILD the docker image again.',
       },
       {
         label: '2.8',
@@ -253,7 +253,7 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
       {
         title: 'Write sticks',
         detail:
-          'Log a new expense and confirm a row appears in the shared sheet (UI or sheet itself).',
+          'Lakshmi should have sheets MCP. Log a new expense and confirm a row appears in the shared sheet (UI or sheet itself).',
       },
       {
         title: 'Survive a clear',
