@@ -1,7 +1,7 @@
 """
 One-time interactive Sheets OAuth consent -- no CLI binary, just this script.
 
-Reuses the same OAuth client as Gmail (./data/credentials/gmail_client_secret.json)
+Reuses the same OAuth client as Gmail (./data/credentials/google_client_secret.json)
 -- same Cloud project, different requested scopes -- so if Gmail is already
 set up, no new Cloud Console work is needed here beyond confirming the
 Sheets and Drive APIs are enabled on that project.

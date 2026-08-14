@@ -2,8 +2,9 @@
 One-time interactive Gmail OAuth consent -- no CLI binary, just this script.
 
 Prerequisite: download the OAuth client JSON (type: Desktop app) from Google
-Cloud Console and save it to ./data/credentials/gmail_client_secret.json
-(mounted into the container at /app/data/credentials/).
+Cloud Console and save it to ./data/credentials/google_client_secret.json
+(mounted into the container at /app/data/credentials/). Shared with Sheets
+-- same Cloud project/client, different scopes and token file.
 
 Run with port 8765 published so your host browser can reach the local OAuth
 callback running inside the container:
