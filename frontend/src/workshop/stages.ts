@@ -342,24 +342,26 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
     ],
     tasks: [
       {
-        title: 'BA and Dev exist',
+        title: 'BA agent ready',
         detail:
-          'Create (or load) BA and Dev agents from templates/samples so both names show in the sidebar.',
+          'Create BA agent through the UI and set the provider/model. Copy the SOUL from templates/ba-agent/SOUL.md. Add Filesystem MCP.',
       },
       {
-        title: 'Handoff target set',
+        title: 'Dev agent ready',
         detail:
-          'On BA, enable Dev as a handoff target and save. Config should list Dev as a destination.',
+          'Create Dev agent through the UI and set the provider/model. Copy the SOUL from templates/dev-agent/SOUL.md. Add Filesystem MCP.',
       },
       {
-        title: 'Pipeline edge visible',
-        detail:
-          'In the pipeline view, confirm an A2A / handoff edge from BA toward Dev (flip the card if needed).',
+        title: 'Handoff configured',
+        detail: 'Configure the BA → Dev handoff.',
       },
       {
-        title: 'Handoff fires',
-        detail:
-          'Ask BA for work that needs Dev. Mark this when chat or debug shows a handoff / Dev reply block.',
+        title: 'Ask BA to build',
+        detail: 'Ask the BA agent to build a simple app like a counter or a shopping list.',
+      },
+      {
+        title: 'Inspect the output',
+        detail: 'Inspect the output (mostly in data/workspace/) and the hand-offs.',
       },
     ],
     tip: 'SOUL can teach when to emit a handoff directive.',
