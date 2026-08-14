@@ -186,7 +186,7 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
       {
         title: 'Sheets MCP online',
         detail:
-          'Attach the Google Sheets MCP (room credentials from facilitator) so the agent can call sheet tools.',
+          'Attach the Google Sheets MCP so the agent can call sheet tools.',
       },
       {
         label: '2.1',
@@ -251,7 +251,7 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
         detail: 'Restart gateway with `docker compose restart gateway`.',
       },
       {
-        title: 'Write sticks',
+        title: 'Add new expenses',
         detail:
           'Lakshmi should have sheets MCP. Log a new expense and confirm a row appears in the shared sheet (UI or sheet itself).',
       },
@@ -289,11 +289,6 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
           'Enable the GMail API in the same Google Cloud project. https://console.developers.google.com/apis/api/gmail.googleapis.com/',
       },
       {
-        title: 'Gmail MCP online',
-        detail:
-          'Connect Gmail MCP to your agent with the room setup. Confirm tools show up for that agent.',
-      },
-      {
         title: 'Run auth setup',
         detail:
           'Run `docker compose run --rm -p 8765:8765 gateway python -m gateway.mcp_servers.gmail_auth_setup` and note the url.',
@@ -306,11 +301,6 @@ export const WORKSHOP_STAGES: WorkshopStage[] = [
       {
         title: 'Restart gateway',
         detail: 'Restart gateway with `docker compose restart gateway`.',
-      },
-      {
-        title: 'Open a real message',
-        detail:
-          'List or open a test / labeled mail the facilitator prepared. You should see a real subject or snippet, not a guess.',
       },
       {
         title: 'Add expenses from mail',
